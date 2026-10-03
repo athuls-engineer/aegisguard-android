@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="org.aegisguard.android"
-    android:versionCode="20806"
-    android:versionName="2.8.6">
+    android:versionCode="20807"
+    android:versionName="2.8.7">
 
     <uses-sdk
         android:minSdkVersion="24"
@@ -16,6 +16,22 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+
+    <queries>
+        <package android:name="in.startv.hotstar" />
+        <package android:name="in.startv.hotstar.dplus" />
+        <package android:name="in.startv.hotstar.dplus.tv" />
+        <package android:name="com.hotstar.dplus" />
+        <package android:name="com.jio.media.ondemand" />
+        <package android:name="com.jio.jioplay.tv" />
+        <package android:name="com.disney.disneyplus" />
+        <package android:name="com.sonyliv" />
+        <package android:name="com.graymatrix.did" />
+        <package android:name="com.netflix.ninja" />
+        <package android:name="com.netflix.mediaclient" />
+        <package android:name="com.amazon.avod.thirdpartyclient" />
+    </queries>
 
     <application
         android:allowBackup="true"
@@ -63,7 +79,7 @@
         <service
             android:name=".AegisTileService"
             android:label="@string/tile_name"
-            android:icon="@mipmap/ic_launcher"
+            android:icon="@drawable/ic_stat_shield"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
             android:exported="true">
             <intent-filter>

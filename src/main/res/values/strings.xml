@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">AegisGuard</string>
-    <string name="tile_name">AegisGuard Shield</string>
-    <string name="version_badge">v2.8.4 Ultra</string>
+    <string name="tile_name">AegisGuard</string>
+    <string name="version_badge">v2.8.7 Ultra</string>
     <string name="status_protected">PROTECTED</string>
     <string name="status_paused">PAUSED</string>
     <string name="status_protected_desc">Tap to pause shield system</string>

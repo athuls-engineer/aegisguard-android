@@ -44,15 +44,19 @@ public class AegisTileService extends TileService {
         if (tile == null) return;
 
         boolean active = AegisVpnService.isRunning.get();
+        tile.setLabel(getString(R.string.tile_name));
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            tile.setIcon(android.graphics.drawable.Icon.createWithResource(this, R.drawable.ic_stat_shield));
+        }
+
         if (active) {
             tile.setState(Tile.STATE_ACTIVE);
-            tile.setLabel(getString(R.string.tile_name));
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 tile.setSubtitle("Protected");
             }
         } else {
             tile.setState(Tile.STATE_INACTIVE);
-            tile.setLabel(getString(R.string.tile_name));
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 tile.setSubtitle("Paused");
             }

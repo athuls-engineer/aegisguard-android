@@ -395,6 +395,8 @@ public class AegisVpnService extends VpnService implements Runnable {
                     // over the physical Wi-Fi/LTE network with NET_CAPABILITY_NOT_VPN, eliminating NET_101.
                     String[] streamingApps = new String[] {
                         "in.startv.hotstar",                // Disney+ Hotstar / JioHotstar India
+                        "in.startv.hotstar.dplus",          // Hotstar Variant
+                        "in.startv.hotstar.dplus.tv",       // Hotstar Android TV
                         "com.hotstar.dplus",                // Hotstar International / MENA
                         "com.jio.media.ondemand",           // JioCinema
                         "com.jio.jioplay.tv",               // JioTV
@@ -405,10 +407,8 @@ public class AegisVpnService extends VpnService implements Runnable {
                         "com.netflix.mediaclient",          // Netflix Mobile
                         "com.amazon.avod.thirdpartyclient"  // Amazon Prime Video
                     };
-                    PackageManager pm = getPackageManager();
                     for (String appPkg : streamingApps) {
                         try {
-                            pm.getPackageInfo(appPkg, 0);
                             builder.addDisallowedApplication(appPkg);
                             Log.i(TAG, "Smart Streaming Bypass active for: " + appPkg);
                         } catch (PackageManager.NameNotFoundException ignored) {
