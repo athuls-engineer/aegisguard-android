@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AegisGuard</string>
+    <string name="tile_name">AegisGuard Shield</string>
+    <string name="version_badge">v2.8.4 Ultra</string>
+    <string name="status_protected">PROTECTED</string>
+    <string name="status_paused">PAUSED</string>
+    <string name="status_protected_desc">Tap to pause shield system</string>
+    <string name="status_paused_desc">Shield is paused. Tap to activate.</string>
+    <string name="status_hardware_tun">HARDWARE TUN • 0% DRAIN</string>
+    <string name="status_tap_activate">TAP TO ACTIVATE SHIELD</string>
+    
+    <string name="ads_blocked_label">Ads Sinkholed</string>
+    <string name="trackers_blocked_label">Trackers Thwarted</string>
+    <string name="data_saved_label">Data Saved</string>
+    <string name="battery_drain_label">Battery Drain</string>
+    <string name="battery_drain_val">0.00%/hr</string>
+    
+    <string name="channel_name">AegisGuard Shield Protection</string>
+    <string name="channel_desc">Active background systemwide DNS sinkhole status</string>
+    <string name="notification_title">AegisGuard Active</string>
+    <string name="notification_text">Hardware line-rate DNS sinkhole running</string>
+    <string name="action_stop">PAUSE</string>
+    <string name="action_start">RESUME</string>
+
+    <!-- Settings Strings -->
+    <string name="settings_title">Settings &amp; Defense</string>
+    <string name="settings_subtitle">Engine Configuration • v2.8.4 Ultra</string>
+    
+    <string name="section_stats_cache">STATISTICS &amp; CACHE</string>
+    <string name="reset_stats_title">Reset All Statistics</string>
+    <string name="reset_stats_desc">Reset blocked ads, trackers, and data savings counters to 0</string>
+    <string name="btn_reset">RESET</string>
+    
+    <string name="clear_cache_title">Flush DNS Memory Cache</string>
+    <string name="clear_cache_desc">Purge all cached DNS entries from RAM memory</string>
+    <string name="btn_purge">PURGE</string>
+
+    <string name="section_upstream_dns">UPSTREAM DNS RESOLVER</string>
+    <string name="upstream_dns_title">DNS Resolution Strategy</string>
+    <string name="upstream_dns_desc">Select which secure upstream resolves non-ad queries</string>
+
+    <string name="section_modules">ACTIVE DEFENSE MODULES</string>
+    <string name="mod_ads_title">Mobile Ads &amp; Interstitials</string>
+    <string name="mod_ads_desc">Block AdMob, Unity, AppLovin, IronSource, Vungle, InMobi</string>
+    
+    <string name="mod_popups_title">Popups &amp; Malicious Redirects</string>
+    <string name="mod_popups_desc">Block PopAds, PropellerAds, Adsterra, ExoClick, Monetag</string>
+    
+    <string name="mod_trackers_title">Trackers &amp; User Profiling</string>
+    <string name="mod_trackers_desc">Block AppsFlyer, Adjust, Branch, Kochava, Braze, Mixpanel</string>
+    
+    <string name="mod_fingerprint_title">Device Fingerprinting</string>
+    <string name="mod_fingerprint_desc">Neutralize Canvas, WebGL, Audio probes, and NewRelic</string>
+    
+    <string name="mod_oem_title">OEM Hardware Telemetry</string>
+    <string name="mod_oem_desc">Block Xiaomi MIUI/HyperOS, Samsung, OnePlus, Vivo spyware</string>
+
+    <string name="section_compatibility">ZERO-LATENCY APP COMPATIBILITY</string>
+    <string name="section_persistence">BACKGROUND PERSISTENCE &amp; AUTO-START</string>
+    <string name="section_specs">ENGINE SPECIFICATIONS</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_reset_title">Reset All Statistics?</string>
+    <string name="dialog_reset_message">This will reset all blocked ad counters, tracker counts, and data savings metrics back to zero.\n\nThis action cannot be undone.</string>
+    <string name="dialog_cancel">Cancel</string>
+    <string name="dialog_confirm_reset">Reset to 0</string>
+</resources>

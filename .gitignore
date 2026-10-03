@@ -1,0 +1,29 @@
+# Build output and temporary artifacts
+build/
+bin/
+gen/
+out/
+outputs/
+*.class
+*.dex
+*.apk
+*.ap_
+*.jar
+
+# Python bytecode and temporary logs
+__pycache__/
+*.pyc
+*.pyo
+*.log
+
+# Production Keystore & Private Signing Credentials
+keystore/
+*.keystore
+*.jks
+
+# IDE & OS Specific
+.idea/
+.gradle/
+*.iml
+.DS_Store
+Thumbs.db

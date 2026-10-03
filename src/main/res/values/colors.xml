@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- True Tesla Mobile App AMOLED Color Architecture -->
+    <color name="bg_dark">#000000</color>
+    <color name="card_bg">#141416</color>
+    <color name="card_bg_elevated">#1C1C1E</color>
+    <color name="card_border">#242426</color>
+    <color name="card_inner">#111113</color>
+    
+    <!-- Authentic Tesla System Accents -->
+    <color name="tesla_blue">#3E8BFF</color>
+    <color name="tesla_blue_glow">#60A5FA</color>
+    <color name="tesla_green">#34C759</color>
+    <color name="tesla_green_dim">#1A4D2E</color>
+    <color name="tesla_red">#FF3B30</color>
+    <color name="tesla_red_dim">#4A1A1A</color>
+    
+    <color name="accent_cyan">#38BDF8</color>
+    <color name="accent_cyan_glow">#00E5FF</color>
+    <color name="accent_cyan_dim">#152836</color>
+    <color name="accent_emerald">#34C759</color>
+    <color name="accent_emerald_dim">#152E20</color>
+    <color name="accent_red">#FF3B30</color>
+    <color name="accent_red_dim">#361517</color>
+
+    <!-- Tesla High-Contrast Typography Hierarchy -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#8E8E93</color>
+    <color name="text_muted">#545458</color>
+
+    <!-- Tesla Button & Surface States -->
+    <color name="tesla_btn_bg">#1C1C1E</color>
+    <color name="tesla_btn_stroke">#2C2C2E</color>
+    <color name="transparent">#00000000</color>
+    <color name="ripple_white">#1FFFFFFF</color>
+    <color name="ripple_cyan">#2A38BDF8</color>
+    <color name="dialog_bg">#18181A</color>
+</resources>

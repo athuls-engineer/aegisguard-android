@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="@color/ripple_white">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="@color/tesla_btn_bg" />
+            <stroke android:width="0.5dp" android:color="@color/tesla_btn_stroke" />
+        </shape>
+    </item>
+</ripple>

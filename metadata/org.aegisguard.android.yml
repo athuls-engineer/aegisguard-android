@@ -1,0 +1,31 @@
+Categories:
+  - Security
+  - Internet
+  - System
+License: GPL-3.0-or-later
+AuthorName: AegisGuard Security Contributors
+WebSite: https://github.com/athuls-engineer/aegisguard-android
+SourceCode: https://github.com/athuls-engineer/aegisguard-android
+IssueTracker: https://github.com/athuls-engineer/aegisguard-android/issues
+Changelog: https://github.com/athuls-engineer/aegisguard-android/releases
+
+AutoName: AegisGuard
+Summary: Hardware line-rate, zero-drain systemwide ad and tracker sinkhole
+
+Description: |-
+  AegisGuard is an autonomous, ultra-high-performance systemwide ad blocker,
+  telemetry sinkhole, and privacy guard designed for modern Android.
+
+  Operating entirely on-device via a zero-copy local TUN packet filter, AegisGuard
+  achieves the speed and efficiency of rooted kernel hosts modifications without
+  requiring root access, without unlocking the bootloader, and without tripping
+  Google Play Integrity or banking apps.
+
+RepoType: git
+Repo: https://github.com/athuls-engineer/aegisguard-android.git
+
+Builds:
+  - versionName: 2.8.5
+    versionCode: 20805
+    commit: v2.8.5
+    target: android-34

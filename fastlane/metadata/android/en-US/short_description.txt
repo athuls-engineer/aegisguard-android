@@ -1,0 +1,1 @@
+Hardware line-rate, zero-drain systemwide ad and tracker sinkhole.
