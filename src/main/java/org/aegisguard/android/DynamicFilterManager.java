@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.GZIPInputStream;
 
 /**
- * Dynamic Threat Intelligence Engine (v2.8.3 Ultra).
+ * Dynamic Threat Intelligence Engine (v2.8.7 Ultra).
  * 
  * Features:
  * 1. Autonomous 5-Hour Background Auto-Update: Fetches latest zero-day ad networks,

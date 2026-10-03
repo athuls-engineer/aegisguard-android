@@ -29,3 +29,8 @@ Builds:
     versionCode: 20805
     commit: v2.8.5
     target: android-34
+
+  - versionName: 2.8.7
+    versionCode: 20807
+    commit: v2.8.7
+    target: android-34

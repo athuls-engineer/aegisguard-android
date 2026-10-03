@@ -103,6 +103,17 @@ public class AegisVpnService extends VpnService implements Runnable {
         }
     }
 
+    public static void updateQuickSettingsTile(Context context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && context != null) {
+            try {
+                android.service.quicksettings.TileService.requestListeningState(
+                    context.getApplicationContext(),
+                    new android.content.ComponentName(context.getApplicationContext(), AegisTileService.class)
+                );
+            } catch (Throwable ignored) {}
+        }
+    }
+
     private ParcelFileDescriptor vpnInterface = null;
     private Thread workerThread = null;
     private ExecutorService dnsWorkerPool = null;
@@ -223,6 +234,7 @@ public class AegisVpnService extends VpnService implements Runnable {
         workerThread.start();
         isRunning.set(true);
         notifyStateChanged(true);
+        updateQuickSettingsTile(this);
 
         if (prefs != null) {
             prefs.edit().putBoolean("shield_enabled", true).apply();
@@ -233,6 +245,7 @@ public class AegisVpnService extends VpnService implements Runnable {
         shouldStop.set(true);
         isRunning.set(false);
         notifyStateChanged(false);
+        updateQuickSettingsTile(this);
 
         if (prefs != null) {
             prefs.edit().putBoolean("shield_enabled", false).apply();
@@ -316,7 +329,7 @@ public class AegisVpnService extends VpnService implements Runnable {
             while (!shouldStop.get()) {
                 try {
                     Builder builder = new Builder();
-                    builder.setSession("AegisGuard v2.8.5 Ultra");
+                    builder.setSession("AegisGuard Ultra");
                     builder.setMtu(1400);
 
                     // Subnet IPv4: 10.99.0.1/24 ensures 10.99.0.2 is in local subnet
@@ -577,6 +590,7 @@ public class AegisVpnService extends VpnService implements Runnable {
             saveStats();
             isRunning.set(false);
             notifyStateChanged(false);
+            updateQuickSettingsTile(this);
         }
 
     private static byte[] createIpv4TcpReset(byte[] packet, int length, int ipHeaderLen) {

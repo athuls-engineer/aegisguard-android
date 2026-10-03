@@ -26,7 +26,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Ultra-Low-Latency Transparent DNS Forwarding & Stale-While-Revalidate Caching Engine (v2.8.5 Ultra).
+ * Ultra-Low-Latency Transparent DNS Forwarding & Stale-While-Revalidate Caching Engine (v2.8.7 Ultra).
  * 
  * Architectural Highlights:
  * 1. Dual-Stack Anycast Upstream Racing: Simultaneously queries Cloudflare IPv4/IPv6,

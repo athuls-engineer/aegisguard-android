@@ -5,7 +5,7 @@
 **Hardware line-rate, battery-neutral, zero-drain systemwide ad blocker, telemetry sinkhole, and privacy guard for modern Android.**
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Version](https://img.shields.io/badge/Release-v2.8.5-emerald.svg)](https://github.com/athuls-engineer/aegisguard-android/releases)
+[![Version](https://img.shields.io/badge/Release-v2.8.7-emerald.svg)](https://github.com/athuls-engineer/aegisguard-android/releases)
 [![Android](https://img.shields.io/badge/Android-7.0%2B%20(API%2024%2B)-teal.svg)](https://developer.android.com)
 [![Size](https://img.shields.io/badge/APK%20Size-1.0%20MB-cyan.svg)](https://github.com/athuls-engineer/aegisguard-android/releases)
 [![Root](https://img.shields.io/badge/Root-NOT%20Required-success.svg)](https://github.com/athuls-engineer/aegisguard-android)
@@ -98,7 +98,7 @@ AegisGuard is built using pure native command-line tooling without Gradle bloat:
 .\build_apk.ps1
 ```
 The compiled, 4-byte aligned, and cryptographically signed APK will be output to:
-`build/outputs/AegisGuard-v2.8.5-release.apk`
+`build/outputs/AegisGuard-v2.8.7-release.apk`
 
 ---
 

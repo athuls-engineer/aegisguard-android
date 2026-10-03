@@ -503,6 +503,28 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
+                    android:text="Disney+ Hotstar &amp; Streaming"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SMART BYPASS"
+                    android:textColor="@color/accent_emerald"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingVertical="4dp">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
                     android:text="Telegram MTProto (DC1 - DC5)"
                     android:textColor="@color/text_primary"
                     android:textSize="13sp" />
@@ -883,7 +905,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="AegisGuard v2.8.3 Ultra Enterprise (5-Hour Global Auto-Sync)"
+                android:text="AegisGuard v2.8.7 Ultra (Line-Rate Defense &amp; Streaming Bypass)"
                 android:textColor="@color/text_primary"
                 android:textSize="14sp"
                 android:textStyle="bold" />
@@ -892,7 +914,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="• Pure Split-DNS Architecture (Zero app traffic routing)\n• Sub-microsecond local sinkholing (&lt; 0.05ms)\n• Permanent cryptographic keystore signing\n• Seamless in-place updates without uninstallation"
+                android:text="• Pure Split-DNS Architecture (Zero app traffic routing)\n• Sub-microsecond local sinkholing (&lt; 0.01ms)\n• Permanent cryptographic keystore signing\n• Seamless in-place updates without uninstallation"
                 android:textColor="@color/text_secondary"
                 android:textSize="12sp"
                 android:lineSpacingExtra="3dp" />

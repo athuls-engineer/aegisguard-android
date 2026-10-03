@@ -347,6 +347,7 @@ public class MainActivity extends Activity implements AegisVpnService.TrafficLis
             AegisVpnService.setTrafficListener(this);
             AegisVpnService.addStateListener(this);
             applyState(AegisVpnService.isRunning.get());
+            AegisVpnService.updateQuickSettingsTile(this);
         } catch (Throwable t) {
             android.util.Log.e("MainActivity", "Error in onResume", t);
         }
