@@ -8,6 +8,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.net.ConnectivityManager;
 import android.net.LinkProperties;
@@ -385,6 +386,37 @@ public class AegisVpnService extends VpnService implements Runnable {
                     try {
                         builder.addDisallowedApplication(getPackageName());
                     } catch (Throwable ignored) {}
+
+                    // 5. Intelligent Streaming & DRM App Bypass:
+                    // Media streaming platforms (Disney+ Hotstar, JioCinema, SonyLIV, etc.) enforce strict
+                    // anti-VPN detection and DRM license requirements that throw error NET_101 when routed
+                    // over an active VPN interface.
+                    // By adding them to disallowed applications, Android routes their connections directly
+                    // over the physical Wi-Fi/LTE network with NET_CAPABILITY_NOT_VPN, eliminating NET_101.
+                    String[] streamingApps = new String[] {
+                        "in.startv.hotstar",                // Disney+ Hotstar / JioHotstar India
+                        "com.hotstar.dplus",                // Hotstar International / MENA
+                        "com.jio.media.ondemand",           // JioCinema
+                        "com.jio.jioplay.tv",               // JioTV
+                        "com.disney.disneyplus",            // Disney+
+                        "com.sonyliv",                      // SonyLIV
+                        "com.graymatrix.did",               // Zee5
+                        "com.netflix.ninja",                // Netflix TV
+                        "com.netflix.mediaclient",          // Netflix Mobile
+                        "com.amazon.avod.thirdpartyclient"  // Amazon Prime Video
+                    };
+                    PackageManager pm = getPackageManager();
+                    for (String appPkg : streamingApps) {
+                        try {
+                            pm.getPackageInfo(appPkg, 0);
+                            builder.addDisallowedApplication(appPkg);
+                            Log.i(TAG, "Smart Streaming Bypass active for: " + appPkg);
+                        } catch (PackageManager.NameNotFoundException ignored) {
+                            // Not installed on user device, skip cleanly
+                        } catch (Throwable t) {
+                            Log.w(TAG, "Could not add disallowed app " + appPkg + ": " + t.getMessage());
+                        }
+                    }
 
                     vpnInterface = builder.establish();
                     if (vpnInterface == null) {

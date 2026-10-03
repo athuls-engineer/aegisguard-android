@@ -405,10 +405,12 @@ public class DnsForwarder {
                     "connectivitycheck.gstatic.com", "connectivitycheck.android.com", "clients3.google.com",
                     // Twitter / X
                     "twitter.com", "x.com", "api.twitter.com", "twimg.com", "pbs.twimg.com",
-                    // Discord, Spotify, Netflix, Amazon
+                    // Discord, Spotify, Netflix, Amazon, Disney+ Hotstar
                     "discord.com", "discord.gg", "gateway.discord.gg", "cdn.discordapp.com",
                     "spotify.com", "www.spotify.com", "spclient.wg.spotify.com", "scdn.co",
                     "netflix.com", "www.netflix.com", "nflxvideo.net", "nflximg.net",
+                    "hotstar.com", "www.hotstar.com", "api.hotstar.com", "bifrost-api.hotstar.com",
+                    "secure-media.hotstar.com", "hses3.hotstar.com", "img1.hotstar.com", "conviva.com",
                     "amazon.com", "www.amazon.com", "cloudflare.com", "wikipedia.org"
                 };
 

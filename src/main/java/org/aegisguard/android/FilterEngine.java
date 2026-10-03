@@ -261,6 +261,14 @@ public class FilterEngine {
             domain.equals("redditstatic.com") || domain.endsWith(".redditstatic.com") ||
             domain.equals("discord.com") || domain.endsWith(".discord.com") || domain.equals("discord.gg") || domain.endsWith(".discord.gg") ||
             domain.equals("netflix.com") || domain.endsWith(".netflix.com") || domain.endsWith(".nflxvideo.net") || domain.endsWith(".nflximg.net") ||
+            // Disney+ Hotstar, JioHotstar & Streaming Media Infrastructure (Eliminates NET_101 & DRM errors)
+            domain.equals("hotstar.com") || domain.endsWith(".hotstar.com") ||
+            domain.equals("hotstarcdn.com") || domain.endsWith(".hotstarcdn.com") ||
+            domain.equals("hotstar-cdn.net") || domain.endsWith(".hotstar-cdn.net") ||
+            domain.equals("starott.com") || domain.endsWith(".starott.com") ||
+            domain.equals("conviva.com") || domain.endsWith(".conviva.com") ||
+            domain.equals("onetrust.com") || domain.endsWith(".onetrust.com") ||
+            domain.equals("disneyplus.com") || domain.endsWith(".disneyplus.com") ||
             domain.equals("amazon.com") || domain.endsWith(".amazon.com") || domain.endsWith(".media-amazon.com") ||
             domain.equals("apple.com") || domain.endsWith(".apple.com") || domain.endsWith(".icloud.com") ||
             domain.equals("microsoft.com") || domain.endsWith(".microsoft.com") || domain.endsWith(".office.com") ||
