@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -111,6 +112,19 @@ public class SettingsActivity extends Activity {
         tvThreatRulesCount = findViewById(R.id.tvThreatRulesCount);
         tvThreatLastSync = findViewById(R.id.tvThreatLastSync);
         btnUpdateFiltersNow = findViewById(R.id.btnUpdateFiltersNow);
+
+        TextView tvSettingsSubtitle = findViewById(R.id.tvSettingsSubtitle);
+        TextView tvAboutVersion = findViewById(R.id.tvAboutVersion);
+        try {
+            PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
+            String vName = pInfo.versionName;
+            if (tvSettingsSubtitle != null) {
+                tvSettingsSubtitle.setText("Engine Configuration • v" + vName + " Ultra");
+            }
+            if (tvAboutVersion != null) {
+                tvAboutVersion.setText("AegisGuard v" + vName + " Ultra (Line-Rate Defense & Streaming Bypass)");
+            }
+        } catch (Exception ignored) {}
     }
 
     @Override

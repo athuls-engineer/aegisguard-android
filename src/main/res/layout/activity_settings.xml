@@ -52,6 +52,7 @@
                     android:textStyle="bold" />
 
                 <TextView
+                    android:id="@+id/tvSettingsSubtitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/settings_subtitle"
@@ -903,9 +904,10 @@
             android:layout_marginBottom="24dp">
 
             <TextView
+                android:id="@+id/tvAboutVersion"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="AegisGuard v2.8.7 Ultra (Line-Rate Defense &amp; Streaming Bypass)"
+                android:text="AegisGuard v2.8.8 Ultra (Line-Rate Defense &amp; Streaming Bypass)"
                 android:textColor="@color/text_primary"
                 android:textSize="14sp"
                 android:textStyle="bold" />
