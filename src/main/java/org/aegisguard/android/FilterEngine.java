@@ -77,24 +77,30 @@ public class FilterEngine {
         // 1. Mobile Ad Networks, Video Interstitials & Banners
         String[] ads = new String[] {
             // Google Ad Ecosystem & In-App Video SDKs
+            "googlesyndication.com", "tpc.googlesyndication.com", "afs.googlesyndication.com",
             "doubleclick.net", "googleads.g.doubleclick.net", "pagead2.googlesyndication.com",
             "adservice.google.com", "admob.com", "media.admob.com", "pubads.g.doubleclick.net",
             "securepubads.g.doubleclick.net", "pagead2.googleadservices.com", "googleadservices.com",
             "ads.google.com", "adsyndication.com", "imasdk.googleapis.com", "partnerad.l.google.com",
             "video-stats.l.google.com", "adclick.g.doubleclick.net", "ade.googlesyndication.com",
-            "cm.g.doubleclick.net", "stats.g.doubleclick.net",
+            "cm.g.doubleclick.net", "stats.g.doubleclick.net", "adtrafficquality.google",
+            "ep1.adtrafficquality.google", "admob.google.com", "googlemobileads.google.com",
+            "app-measurement.com",
+            // Feature Flagging & In-App Ad Rollout Gateways (Character.ai, etc.)
+            "prodregistryv2.org", "statsigapi.net", "api.statsig.com", "statsig.com",
             // App Monetization, Full-Screen Video & Interstitial SDKs
             "applovin.com", "applvn.com", "d.applovin.com", "a.applovin.com", "ms.applovin.com",
             "pdn.applovin.com", "rt.applovin.com", "o.applovin.com", "edge.applovin.com",
-            "res.applovin.com", "assets.applovin.com",
-            "unityads.unity3d.com", "unityads.unity.com", "auction.unityads.unity3d.com",
+            "res.applovin.com", "assets.applovin.com", "bidder.applovin.com", "safebrowsing.applovin.com",
+            "unityads.unity3d.com", "unityads.unity.com", "auction.unityads.unity3d.com", "unityads.com",
             "webview.unityads.unity3d.com", "config.unityads.unity3d.com", "adserver.unityads.unity3d.com",
             "cdns.unityads.unity3d.com", "stats.unityads.unity3d.com", "ads.unity3d.com", "operative.unity3d.com",
-            "adcontent.unityads.unity3d.com",
-            "ironsrc.com", "supersonicads.com", "supersonic.com", "ssacdn.com", "platform.ironsrc.com",
+            "adcontent.unityads.unity3d.com", "unity3d-ads.com",
+            "ironsrc.com", "ironsource.com", "supersonicads.com", "supersonic.com", "ssacdn.com", "platform.ironsrc.com",
             "track.ironsrc.com", "outcome.ironsrc.com", "mobile-monetization.ironsrc.com",
             "init.supersonicads.com", "logs.ironsrc.com", "al.supersonicads.com",
             "inmobi.com", "config.inmobi.com", "api.inmobi.com", "c.inmobi.com", "w.inmobi.com", "sdkm.w.inmobi.com",
+            "i.inmobi.com", "ad.inmobi.com", "adx.inmobi.com", "dsp.inmobi.com",
             "vungle.com", "api.vungle.com", "ads.api.vungle.com", "events.liftoff.io", "liftoff.io",
             "v.vungle.com", "cdn.vungle.com",
             "chartboost.com", "live.chartboost.com", "da.chartboost.com",
@@ -106,6 +112,7 @@ public class FilterEngine {
             "pangolin-sdk-toutiao-b.com", "pglstatp-toutiao.com", "ad.toutiao.com",
             "toblog.ctobsnssdk.com", "mon.musical.ly", "mon.byteoversea.com", "ib.snssdk.com",
             "isnssdk.com", "sf16-fe-tos-sg.byteoversea.com",
+            "ads.tiktok.com", "analytics.tiktok.com", "ads-api.tiktok.com",
             "fyber.com", "inner-active.mobi", "adcolony.com", "digitalturbine.com", "dt.com",
             "wd.adcolony.com", "events3.adcolony.com",
             "smaato.com", "smaato.net", "soma.smaato.net", "mobfox.com", "leadbolt.com",
@@ -113,6 +120,7 @@ public class FilterEngine {
             "bigossp.com", "bigoad.net", "ad.bigo.sg",
             "adjoe.zone", "adtiming.com", "tradplusad.com", "toponad.com", "hyprmx.com",
             "kayzen.io", "bidmachine.io", "adfox.ru", "an.yandex.ru",
+            "moloco.com", "ad.moloco.com", "dsp.moloco.com",
             // Amazon Publisher Services (APS / A9) Interstitial SDKs
             "amazon-adsystem.com", "aax.amazon-adsystem.com", "c.amazon-adsystem.com",
             "s.amazon-adsystem.com", "advertising.amazon.com", "aax-us-east.amazon-adsystem.com", "fls-na.amazon.com",
@@ -376,10 +384,18 @@ public class FilterEngine {
         // 3. Heuristic detection on standard ad/popup subdomains (strictly ad-serving, not logistics or analytics)
         if (blockAds && (domain.startsWith("ad.") || domain.startsWith("ads.") || 
             domain.startsWith("adservice.") || domain.startsWith("adserver.") ||
-            domain.startsWith("adsystem.") || domain.startsWith("mobileads.") ||
-            domain.startsWith("videoads.") || domain.startsWith("interstitial.") ||
-            domain.startsWith("rewarded.") || domain.startsWith("adtrack.") ||
-            domain.startsWith("banner.") || domain.startsWith("banners.") ||
+            domain.startsWith("adservers.") || domain.startsWith("adsystem.") ||
+            domain.startsWith("adsystems.") || domain.startsWith("ads-api.") ||
+            domain.startsWith("ad-delivery.") || domain.startsWith("admob.") ||
+            domain.startsWith("adcontent.") || domain.startsWith("adcdn.") ||
+            domain.startsWith("ads-cdn.") || domain.startsWith("admanager.") ||
+            domain.startsWith("mobileads.") || domain.startsWith("videoads.") ||
+            domain.startsWith("interstitial.") || domain.startsWith("rewarded.") ||
+            domain.startsWith("adtrack.") || domain.startsWith("banner.") ||
+            domain.startsWith("banners.") || domain.startsWith("bannerads.") ||
+            domain.startsWith("banner-ads.") || domain.startsWith("inappads.") ||
+            domain.startsWith("static-ads.") || domain.startsWith("mads.") ||
+            domain.startsWith("nativeads.") || domain.startsWith("displayads.") ||
             domain.startsWith("popup.") || domain.startsWith("popunder."))) {
             return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
         }
