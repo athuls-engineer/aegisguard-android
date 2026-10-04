@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class AegisVpnService extends VpnService implements Runnable {
 
     private static final String TAG = "AegisVpnService";
-    private static final String CHANNEL_ID = "aegis_shield_priority_v5";
+    private static final String CHANNEL_ID = "aegis_shield_priority_v6";
     private static final int NOTIFICATION_ID = 1001;
     private static final String PREFS_NAME = "aegis_stats_prefs";
 
@@ -717,9 +717,10 @@ public class AegisVpnService extends VpnService implements Runnable {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
-                // Delete legacy low-importance channel so OS adopts the high-priority shade channel
+                // Delete legacy channels so OS adopts the fresh high-priority shade channel
                 try {
                     manager.deleteNotificationChannel("aegis_shield_channel");
+                    manager.deleteNotificationChannel("aegis_shield_priority_v5");
                 } catch (Throwable ignored) {}
 
                 NotificationChannel channel = new NotificationChannel(
@@ -815,7 +816,9 @@ public class AegisVpnService extends VpnService implements Runnable {
                .setPriority(Notification.PRIORITY_MAX)
                .setCategory(Notification.CATEGORY_STATUS)
                .setVisibility(Notification.VISIBILITY_PUBLIC)
+               .setWhen(System.currentTimeMillis())
                .setShowWhen(false)
+               .setSortKey("!000000_aegisguard")
                .setOnlyAlertOnce(true)
                .addAction(android.R.drawable.ic_media_pause, "Pause", stopPendingIntent);
 
