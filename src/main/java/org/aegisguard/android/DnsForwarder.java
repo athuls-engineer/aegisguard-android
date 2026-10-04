@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -42,11 +43,12 @@ import java.util.concurrent.Executors;
 public class DnsForwarder {
 
     private static final String TAG = "DnsForwarder";
-    private static final int SOCKET_TIMEOUT_MS = 2500;
-    private static final int RETRY_INTERVAL_MS = 250;
+    private static final int SOCKET_TIMEOUT_MS = 2000;
+    private static final int RETRY_INTERVAL_MS = 180;
     private static final long FRESH_TTL_MS = 300_000L; // 5 minutes fresh
     private static final long STALE_USABLE_MS = 24 * 60 * 60 * 1000L; // 24 hours stale-while-revalidate
     private static final int MAX_CACHE_ENTRIES = 8192;
+    private static final int MAX_POOL_SIZE = 16;
 
     private static class CacheEntry {
         final byte[] rawPayload;
@@ -87,6 +89,7 @@ public class DnsForwarder {
     private final VpnService vpnService;
     private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>(MAX_CACHE_ENTRIES);
     private final CopyOnWriteArrayList<InetAddress> upstreamServers = new CopyOnWriteArrayList<>();
+    private final ConcurrentLinkedQueue<DatagramSocket> socketPool = new ConcurrentLinkedQueue<>();
     private volatile Network underlyingNetwork = null;
     private volatile String selectedProvider = "racing";
 
@@ -100,6 +103,30 @@ public class DnsForwarder {
         prewarmHotDomains();
     }
 
+    private DatagramSocket obtainSocket() {
+        DatagramSocket socket = socketPool.poll();
+        if (socket != null && !socket.isClosed()) {
+            return socket;
+        }
+        try {
+            socket = new DatagramSocket();
+            vpnService.protect(socket);
+            return socket;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void releaseSocket(DatagramSocket socket) {
+        if (socket != null && !socket.isClosed()) {
+            if (socketPool.size() < MAX_POOL_SIZE) {
+                socketPool.offer(socket);
+            } else {
+                try { socket.close(); } catch (Exception ignored) {}
+            }
+        }
+    }
+
     public void setUpstreamProvider(String provider) {
         if (provider != null) {
             this.selectedProvider = provider;
@@ -110,15 +137,15 @@ public class DnsForwarder {
 
     private void initDefaultUpstreams() {
         try {
-            // Dual-Stack Cloudflare (Fastest Global Anycast)
+            // Dual-Stack Cloudflare (Fastest Global Anycast: 1-5ms)
             upstreamServers.add(InetAddress.getByName("1.1.1.1"));
-            upstreamServers.add(InetAddress.getByName("2606:4700:4700::1111"));
-            // Dual-Stack Google Public DNS (Ultra-Reliable Global Backbone)
             upstreamServers.add(InetAddress.getByName("8.8.8.8"));
-            upstreamServers.add(InetAddress.getByName("2001:4860:4860::8888"));
-            // Secondary Fallbacks
             upstreamServers.add(InetAddress.getByName("1.0.0.1"));
-            upstreamServers.add(InetAddress.getByName("2606:4700:4700::1001"));
+            upstreamServers.add(InetAddress.getByName("8.8.4.4"));
+            try {
+                upstreamServers.add(InetAddress.getByName("2606:4700:4700::1111"));
+                upstreamServers.add(InetAddress.getByName("2001:4860:4860::8888"));
+            } catch (Exception ignored) {}
         } catch (Exception ignored) {}
     }
 
@@ -154,7 +181,17 @@ public class DnsForwarder {
                 newServers.add(InetAddress.getByName("94.140.15.15"));
             } else {
                 // "racing" - Dual-Stack Anycast Race:
-                // 1. Physical ISP / Local Router Gateway DNS (IPv4 & IPv6) - Most local and trusted
+                // 1. Tier-1 Global Anycast (Cloudflare & Google): Sub-5ms response globally
+                newServers.add(InetAddress.getByName("1.1.1.1"));
+                newServers.add(InetAddress.getByName("8.8.8.8"));
+                newServers.add(InetAddress.getByName("1.0.0.1"));
+                newServers.add(InetAddress.getByName("8.8.4.4"));
+                try {
+                    newServers.add(InetAddress.getByName("2606:4700:4700::1111"));
+                    newServers.add(InetAddress.getByName("2001:4860:4860::8888"));
+                } catch (Exception ignored) {}
+
+                // 2. Physical ISP / Local Router Gateway DNS (IPv4 & IPv6) - filtered
                 ConnectivityManager cm = (ConnectivityManager) vpnService.getSystemService(Context.CONNECTIVITY_SERVICE);
                 if (cm != null) {
                     Network targetNetwork = this.underlyingNetwork;
@@ -167,6 +204,10 @@ public class DnsForwarder {
                         if (lp != null && lp.getDnsServers() != null) {
                             for (InetAddress addr : lp.getDnsServers()) {
                                 if (!addr.isLoopbackAddress() && !addr.isAnyLocalAddress()) {
+                                    String host = addr.getHostAddress();
+                                    if (host != null && (host.startsWith("10.99.") || host.startsWith("fd00:99:"))) {
+                                        continue; // Guard: NEVER add self virtual VPN TUN addresses!
+                                    }
                                     if (!newServers.contains(addr)) {
                                         newServers.add(addr);
                                     }
@@ -175,22 +216,6 @@ public class DnsForwarder {
                         }
                     }
                 }
-
-                // 2. Cloudflare Anycast (IPv4 & IPv6)
-                newServers.add(InetAddress.getByName("1.1.1.1"));
-                newServers.add(InetAddress.getByName("1.0.0.1"));
-                try {
-                    newServers.add(InetAddress.getByName("2606:4700:4700::1111"));
-                    newServers.add(InetAddress.getByName("2606:4700:4700::1001"));
-                } catch (Exception ignored) {}
-
-                // 3. Google Public DNS (IPv4 & IPv6)
-                newServers.add(InetAddress.getByName("8.8.8.8"));
-                newServers.add(InetAddress.getByName("8.8.4.4"));
-                try {
-                    newServers.add(InetAddress.getByName("2001:4860:4860::8888"));
-                    newServers.add(InetAddress.getByName("2001:4860:4860::8844"));
-                } catch (Exception ignored) {}
             }
 
             if (!newServers.isEmpty()) {
@@ -237,7 +262,7 @@ public class DnsForwarder {
                     public void run() {
                         try {
                             byte[] fresh = forwardUpstream(queryPayloadCopy, originalTxId);
-                            if (fresh != null && fresh.length >= 12) {
+                            if (fresh != null && fresh.length >= 12 && (fresh[3] & 0x0F) == 0) {
                                 putCache(cacheKey, fresh);
                             }
                         } catch (Throwable ignored) {}
@@ -256,7 +281,10 @@ public class DnsForwarder {
 
         byte[] rawResponse = forwardUpstream(queryDnsPayload, query.txId);
         if (rawResponse != null && rawResponse.length >= 12) {
-            putCache(cacheKey, rawResponse);
+            int rcode = rawResponse[3] & 0x0F;
+            if (rcode == 0) {
+                putCache(cacheKey, rawResponse);
+            }
 
             rawResponse[0] = (byte) ((query.txId >> 8) & 0xFF);
             rawResponse[1] = (byte) (query.txId & 0xFF);
@@ -268,18 +296,17 @@ public class DnsForwarder {
     }
 
     /**
-     * Executes clean Dual-Stack Anycast racing using an ephemeral protected socket.
-     * Includes fast UDP re-transmission at 250ms to defeat packet loss.
+     * Executes clean Dual-Stack Anycast racing using pooled protected sockets.
+     * Includes fast UDP re-transmission at 180ms to defeat packet loss.
      */
     private byte[] forwardUpstream(byte[] queryPayload, int expectedTxId) {
-        DatagramSocket socket = null;
-        try {
-            socket = new DatagramSocket();
-            vpnService.protect(socket);
+        DatagramSocket socket = obtainSocket();
+        if (socket == null) return null;
 
-            // First wave: dispatch query simultaneously to up to 6 resolvers
+        try {
+            // First wave: dispatch query simultaneously to top 4 Anycast resolvers
             int numServers = upstreamServers.size();
-            int sendCount = Math.min(numServers, 6);
+            int sendCount = Math.min(numServers, 4);
             for (int i = 0; i < sendCount; i++) {
                 InetAddress server = upstreamServers.get(i);
                 if (server != null) {
@@ -296,13 +323,14 @@ public class DnsForwarder {
             long startTime = System.currentTimeMillis();
             long deadline = startTime + SOCKET_TIMEOUT_MS;
             boolean retried = false;
+            byte[] backupErrorResponse = null;
 
             while (System.currentTimeMillis() < deadline) {
                 long now = System.currentTimeMillis();
                 int remaining = (int) (deadline - now);
                 if (remaining <= 0) break;
 
-                // Fast re-transmit wave after 250ms if no response received
+                // Fast re-transmit wave after 180ms if no valid response received
                 if (!retried && (now - startTime) >= RETRY_INTERVAL_MS) {
                     retried = true;
                     for (int i = 0; i < Math.min(numServers, 4); i++) {
@@ -325,7 +353,17 @@ public class DnsForwarder {
                     if (respLen >= 12) {
                         int respTxId = ((recvBuffer[0] & 0xFF) << 8) | (recvBuffer[1] & 0xFF);
                         if (respTxId == expectedTxId) {
-                            return Arrays.copyOf(recvBuffer, respLen);
+                            int rcode = recvBuffer[3] & 0x0F;
+                            if (rcode == 0) {
+                                // NOERROR -> Clean winning answer! Return instantly
+                                return Arrays.copyOf(recvBuffer, respLen);
+                            } else {
+                                // Store error (e.g. NOTIMP / REFUSED from local ISP) as backup,
+                                // but keep listening for clean NOERROR from Cloudflare/Google!
+                                if (backupErrorResponse == null) {
+                                    backupErrorResponse = Arrays.copyOf(recvBuffer, respLen);
+                                }
+                            }
                         }
                     }
                 } catch (SocketTimeoutException ste) {
@@ -335,13 +373,11 @@ public class DnsForwarder {
                     break;
                 }
             }
-            return null;
+            return backupErrorResponse;
         } catch (Exception e) {
             return null;
         } finally {
-            if (socket != null) {
-                try { socket.close(); } catch (Exception ignored) {}
-            }
+            releaseSocket(socket);
         }
     }
 
@@ -388,37 +424,24 @@ public class DnsForwarder {
         sAsyncExecutor.execute(new Runnable() {
             @Override
             public void run() {
+                try {
+                    // Small delay to allow initial VPN handshake and user app launch without UDP contention
+                    Thread.sleep(1500);
+                } catch (InterruptedException ignored) {}
+
                 String[] hotDomains = new String[] {
-                    // Reddit full infrastructure (eliminates app launch spinners)
-                    "reddit.com", "www.reddit.com", "gateway.reddit.com", "gql.reddit.com",
-                    "oauth.reddit.com", "preview.redd.it", "i.redd.it", "v.redd.it",
-                    "external-preview.redd.it", "styles.redditmedia.com", "redditstatic.com",
-                    "www.redditstatic.com", "redditmedia.com",
-                    // Telegram gateways & Bot API
-                    "telegram.org", "www.telegram.org", "api.telegram.org", "t.me", "telegram.me",
-                    "venus.web.telegram.org", "aurora.web.telegram.org", "vesta.web.telegram.org",
-                    "pluto.web.telegram.org", "flora.web.telegram.org",
-                    // WhatsApp
-                    "whatsapp.com", "www.whatsapp.com", "web.whatsapp.com", "v.whatsapp.net",
-                    "media.whatsapp.net", "chat.whatsapp.net", "call.whatsapp.net", "wa.me",
                     // Instagram & Meta
-                    "instagram.com", "www.instagram.com", "i.instagram.com", "graph.instagram.com",
-                    "scontent.cdninstagram.com", "static.cdninstagram.com", "cdninstagram.com",
-                    "threads.net", "facebook.com", "www.facebook.com", "fbcdn.net",
+                    "instagram.com", "graph.instagram.com", "i.instagram.com", "cdninstagram.com", "threads.net",
+                    // WhatsApp
+                    "whatsapp.com", "web.whatsapp.com", "v.whatsapp.net",
+                    // Telegram
+                    "telegram.org", "t.me",
+                    // Reddit
+                    "reddit.com", "gateway.reddit.com", "gql.reddit.com", "redd.it",
                     // YouTube & Google
-                    "youtube.com", "www.youtube.com", "m.youtube.com", "googlevideo.com",
-                    "ytimg.com", "i.ytimg.com", "s.ytimg.com", "google.com", "www.google.com",
-                    "gstatic.com", "googleapis.com", "play.google.com",
-                    "connectivitycheck.gstatic.com", "connectivitycheck.android.com", "clients3.google.com",
-                    // Twitter / X
-                    "twitter.com", "x.com", "api.twitter.com", "twimg.com", "pbs.twimg.com",
-                    // Discord, Spotify, Netflix, Amazon, Disney+ Hotstar
-                    "discord.com", "discord.gg", "gateway.discord.gg", "cdn.discordapp.com",
-                    "spotify.com", "www.spotify.com", "spclient.wg.spotify.com", "scdn.co",
-                    "netflix.com", "www.netflix.com", "nflxvideo.net", "nflximg.net",
-                    "hotstar.com", "www.hotstar.com", "api.hotstar.com", "bifrost-api.hotstar.com",
-                    "secure-media.hotstar.com", "hses3.hotstar.com", "img1.hotstar.com", "conviva.com",
-                    "amazon.com", "www.amazon.com", "cloudflare.com", "wikipedia.org"
+                    "youtube.com", "googlevideo.com", "ytimg.com", "google.com", "gstatic.com",
+                    // Cloudflare
+                    "cloudflare.com"
                 };
 
                 // Pre-warm BOTH Type A (IPv4) and Type AAAA (IPv6)
@@ -430,7 +453,7 @@ public class DnsForwarder {
                             if (!cache.containsKey(key)) {
                                 byte[] queryPacket = buildSyntheticDnsQuery(domain, qtype);
                                 byte[] resp = forwardUpstream(queryPacket, 0x55AA);
-                                if (resp != null && resp.length >= 12) {
+                                if (resp != null && resp.length >= 12 && (resp[3] & 0x0F) == 0) {
                                     putCache(key, resp);
                                 }
                             }
@@ -475,7 +498,10 @@ public class DnsForwarder {
     }
 
     public void drainSocketPool() {
-        // Maintained for API compatibility
+        DatagramSocket s;
+        while ((s = socketPool.poll()) != null) {
+            try { s.close(); } catch (Exception ignored) {}
+        }
     }
 
     public void clearCache() {

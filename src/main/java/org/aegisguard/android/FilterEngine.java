@@ -259,6 +259,11 @@ public class FilterEngine {
             domain.equals("instagram.com") || domain.endsWith(".instagram.com") || domain.endsWith(".cdninstagram.com") ||
             domain.equals("threads.net") || domain.endsWith(".threads.net") ||
             domain.equals("facebook.com") || domain.endsWith(".facebook.com") || domain.endsWith(".fbcdn.net") ||
+            domain.equals("fbsbx.com") || domain.endsWith(".fbsbx.com") ||
+            domain.equals("meta.com") || domain.endsWith(".meta.com") ||
+            domain.equals("facebook.net") || domain.endsWith(".facebook.net") ||
+            domain.equals("fb.com") || domain.endsWith(".fb.com") ||
+            domain.equals("fb.me") || domain.endsWith(".fb.me") ||
             domain.equals("twitter.com") || domain.endsWith(".twitter.com") || domain.equals("x.com") || domain.endsWith(".x.com") || domain.endsWith(".twimg.com") ||
             domain.equals("reddit.com") || domain.endsWith(".reddit.com") || domain.endsWith(".redditmedia.com") || domain.endsWith(".redd.it") ||
             domain.equals("redditstatic.com") || domain.endsWith(".redditstatic.com") ||
