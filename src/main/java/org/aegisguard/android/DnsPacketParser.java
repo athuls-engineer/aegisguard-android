@@ -26,10 +26,11 @@ public class DnsPacketParser {
         public final int qType;
         public final int dnsOffset;
         public final int dnsLength;
+        public final int questionLength;
 
         public DnsQueryInfo(int ipVersion, int ipHeaderLen, byte[] clientIp, byte[] serverIp,
                             int clientPort, int serverPort, int txId, String qName, int qType,
-                            int dnsOffset, int dnsLength) {
+                            int dnsOffset, int dnsLength, int questionLength) {
             this.ipVersion = ipVersion;
             this.ipHeaderLen = ipHeaderLen;
             this.clientIp = clientIp;
@@ -41,6 +42,7 @@ public class DnsPacketParser {
             this.qType = qType;
             this.dnsOffset = dnsOffset;
             this.dnsLength = dnsLength;
+            this.questionLength = questionLength;
         }
     }
 
@@ -126,10 +128,11 @@ public class DnsPacketParser {
 
         if (pos + 4 > maxPos) return null;
         int qType = ((packet[pos] & 0xFF) << 8) | (packet[pos + 1] & 0xFF);
+        int questionLength = (pos + 4) - (dnsOffset + 12);
 
         return new DnsQueryInfo(ipVersion, ipHeaderLen, clientIp, serverIp,
                                 clientPort, destPort, txId, domain.toString(), qType,
-                                dnsOffset, dnsLen);
+                                dnsOffset, dnsLen, questionLength);
     }
 
     /**
@@ -145,7 +148,7 @@ public class DnsPacketParser {
      *    domain suffix search lists (.lan, .local), eliminating 2-3 second DNS delays.
      */
     public static byte[] createSinkholeResponse(byte[] originalPacket, int originalLength, DnsQueryInfo query) {
-        int questionLen = (query.dnsOffset + query.dnsLength) - (query.dnsOffset + 12);
+        int questionLen = query.questionLength;
         boolean isA = (query.qType == TYPE_A);
         boolean isAaaa = (query.qType == TYPE_AAAA);
 

@@ -270,7 +270,7 @@ public class DynamicFilterManager {
 
             while ((line = reader.readLine()) != null && count < MAX_DYNAMIC_RULES) {
                 line = line.trim();
-                if (line.isEmpty() || line.startsWith("#") || line.startsWith("!") || line.startsWith("[")) {
+                if (line.isEmpty() || line.startsWith("#") || line.startsWith("!") || line.startsWith("[") || line.startsWith("@") || line.contains("##") || line.contains("#@#")) {
                     continue;
                 }
 
@@ -314,7 +314,7 @@ public class DynamicFilterManager {
             if (end > start) {
                 return line.substring(start, end).toLowerCase(Locale.US);
             }
-        } else if (!line.contains("/") && !line.contains(":") && !line.contains(" ")) {
+        } else if (!line.contains("/") && !line.contains(":") && !line.contains(" ") && !line.contains("$") && !line.contains("*")) {
             return line.toLowerCase(Locale.US);
         }
         return null;
@@ -325,6 +325,12 @@ public class DynamicFilterManager {
         if (!d.contains(".")) return false;
         if (d.startsWith(".") || d.endsWith(".")) return false;
         if (d.equals("localhost") || d.equals("broadcasthost") || d.equals("local")) return false;
+        for (int i = 0; i < d.length(); i++) {
+            char c = d.charAt(i);
+            if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '-')) {
+                return false;
+            }
+        }
         return true;
     }
 

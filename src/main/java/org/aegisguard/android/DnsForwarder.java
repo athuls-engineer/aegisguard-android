@@ -42,7 +42,7 @@ import java.util.concurrent.Executors;
 public class DnsForwarder {
 
     private static final String TAG = "DnsForwarder";
-    private static final int SOCKET_TIMEOUT_MS = 1500;
+    private static final int SOCKET_TIMEOUT_MS = 2500;
     private static final int RETRY_INTERVAL_MS = 250;
     private static final long FRESH_TTL_MS = 300_000L; // 5 minutes fresh
     private static final long STALE_USABLE_MS = 24 * 60 * 60 * 1000L; // 24 hours stale-while-revalidate
@@ -154,16 +154,7 @@ public class DnsForwarder {
                 newServers.add(InetAddress.getByName("94.140.15.15"));
             } else {
                 // "racing" - Dual-Stack Anycast Race:
-                // 1. Cloudflare Anycast (IPv4 & IPv6)
-                newServers.add(InetAddress.getByName("1.1.1.1"));
-                newServers.add(InetAddress.getByName("2606:4700:4700::1111"));
-                // 2. Google Public DNS (IPv4 & IPv6)
-                newServers.add(InetAddress.getByName("8.8.8.8"));
-                newServers.add(InetAddress.getByName("2001:4860:4860::8888"));
-                // 3. Secondary Anycast
-                newServers.add(InetAddress.getByName("1.0.0.1"));
-
-                // 4. Physical ISP / Local Router Gateway DNS (IPv4 & IPv6)
+                // 1. Physical ISP / Local Router Gateway DNS (IPv4 & IPv6) - Most local and trusted
                 ConnectivityManager cm = (ConnectivityManager) vpnService.getSystemService(Context.CONNECTIVITY_SERVICE);
                 if (cm != null) {
                     Network targetNetwork = this.underlyingNetwork;
@@ -184,6 +175,22 @@ public class DnsForwarder {
                         }
                     }
                 }
+
+                // 2. Cloudflare Anycast (IPv4 & IPv6)
+                newServers.add(InetAddress.getByName("1.1.1.1"));
+                newServers.add(InetAddress.getByName("1.0.0.1"));
+                try {
+                    newServers.add(InetAddress.getByName("2606:4700:4700::1111"));
+                    newServers.add(InetAddress.getByName("2606:4700:4700::1001"));
+                } catch (Exception ignored) {}
+
+                // 3. Google Public DNS (IPv4 & IPv6)
+                newServers.add(InetAddress.getByName("8.8.8.8"));
+                newServers.add(InetAddress.getByName("8.8.4.4"));
+                try {
+                    newServers.add(InetAddress.getByName("2001:4860:4860::8888"));
+                    newServers.add(InetAddress.getByName("2001:4860:4860::8844"));
+                } catch (Exception ignored) {}
             }
 
             if (!newServers.isEmpty()) {
@@ -256,8 +263,8 @@ public class DnsForwarder {
             return rawResponse;
         }
 
-        // 3. Fallback: Fast SERVFAIL response prevents 5-second Bionic timeout hang
-        return createServfailResponse(queryDnsPayload, query.txId);
+        // 3. Fallback: return null so client resends naturally without hard-failing with SERVFAIL
+        return null;
     }
 
     /**

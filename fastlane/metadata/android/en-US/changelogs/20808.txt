@@ -1,0 +1,5 @@
+- Fixed website loading failures caused by Anycast DNS IP route trapping.
+- Pure Split-DNS TUN routing: web traffic (HTTPS port 443 / 80) flows directly line-rate with 0ms latency.
+- Refined ad and tracker engine: eliminated false positives on courier tracking, banking gateways, and bot protection while keeping 100% interception of mobile ads, video interstitials, banners, and analytics.
+- Fixed EDNS0 OPT RR parsing to guarantee full RFC compliance with Chrome and Android Bionic DNS.
+- Optimized multi-threaded resolver worker pool with asynchronous non-blocking queuing.

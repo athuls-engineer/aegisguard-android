@@ -1,5 +1,6 @@
 package org.aegisguard.android;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -62,6 +63,15 @@ public class FilterEngine {
     private static final Set<String> FINGERPRINT_DOMAINS = new HashSet<>(128);
     private static final Set<String> OEM_DOMAINS = new HashSet<>(128);
     public static final Set<String> DYNAMIC_DOMAINS = Collections.synchronizedSet(new HashSet<String>(4096));
+
+    private static final Set<String> SHARED_HOSTING_SUFFIXES = new HashSet<>(Arrays.asList(
+        "github.io", "pages.dev", "workers.dev", "web.app", "firebaseapp.com",
+        "blogspot.com", "wordpress.com", "herokuapp.com", "vercel.app", "netlify.app",
+        "azureedge.net", "cloudfront.net", "amazonaws.com", "s3.amazonaws.com",
+        "google.com", "googleapis.com", "gstatic.com", "apple.com", "icloud.com",
+        "microsoft.com", "azure.com", "akamaihd.net", "akamaized.net", "fastly.net",
+        "gov.in", "co.in", "co.uk", "org.uk", "gov.uk", "com.au", "co.nz", "com.br"
+    ));
 
     static {
         // 1. Mobile Ad Networks, Video Interstitials & Banners
@@ -145,7 +155,7 @@ public class FilterEngine {
         String[] trackers = new String[] {
             "appsflyer.com", "app.appsflyer.com", "gcdsdk.appsflyer.com", "t.appsflyer.com", "appsflyersdk.com",
             "adjust.com", "app.adjust.com", "view.adjust.com",
-            "branch.io", "api2.branch.io", "bnc.lt",
+            "api2.branch.io",
             "kochava.com", "control.kochava.com", "api.kochava.com",
             "singular.net", "c.singular.net", "singular-metrics.com",
             "tenjin.io", "tenjin.com", "airbridge.io",
@@ -159,7 +169,6 @@ public class FilterEngine {
             "kissmetrics.com", "crazyegg.com", "hotjar.com", "clarity.ms", "mouseflow.com",
             "fullstory.com", "logrocket.com", "smartlook.com", "smartlook.cloud", "contentsquare.net",
             "app-measurement.com", "google-analytics.com", "analytics.google.com",
-            "firebaseinstallations.googleapis.com",
             "scorecardresearch.com", "quantserve.com", "quantcast.com", "comscore.com",
             "moatads.com", "doubleverify.com", "iasds01.com", "integralads.com", "permutive.com",
             "bluekai.com", "krxd.net", "demdex.net", "omtrdc.net", "rlcdn.com", "agkn.com",
@@ -169,8 +178,7 @@ public class FilterEngine {
             "events.reddit.com", "alb.reddit.com", "ads.reddit.com", "e.reddit.com",
             "analytics.tiktok.com", "ads.tiktok.com", "byteoversea.com", "ibytedtos.com", "ads-twitter.com",
             "ads.twitter.com",
-            "ads.pinterest.com", "ads.linkedin.com", "t.co",
-            "sentry.io", "browser.sentry-cdn.com", "bugsnag.com",
+            "ads.pinterest.com", "ads.linkedin.com",
             // In-Built Video Streaming & Mobile Surveillance Beacons
             "spade.twitch.tv", "countess.twitch.tv", "s.youtube.com",
             "adeventtracker.spotify.com", "mc.yandex.ru", "data.flurry.com",
@@ -182,13 +190,8 @@ public class FilterEngine {
         String[] fingerprints = new String[] {
             "mobile-collector.newrelic.com", "bam.nr-data.net", "fingerprintjs.com",
             "fpjs.io", "cdn.fpjs.io", "botd.fpjs.sh", "device-metrics-us.amazon.com",
-            "device-metrics.amazon.com", "trustev.com", "iovation.com",
-            "threatmetrix.com", "sensor.threatmetrix.com", "fraudlabs.com",
-            "perimeterx.net", "client.perimeterx.net", "signals.perimeterx.net",
-            "datadome.co", "sdk.datadome.co", "api-sdk.datadome.co",
-            "arkoselabs.com", "castle.io", "siftscience.com", "collect.siftscience.com", "sift.com",
-            "geo.captcha-delivery.com", "telemetry.hcaptcha.com", "fp.browser.qq.com",
-            "augur.io", "maxmind.com", "evercookie.net", "canvasfingerprinting.com",
+            "device-metrics.amazon.com", "fp.browser.qq.com", "augur.io",
+            "evercookie.net", "canvasfingerprinting.com",
             "browserleaks.com", "deviceinfo.me", "clientjs.org", "audiofingerprint.openwpm.com"
         };
         Collections.addAll(FINGERPRINT_DOMAINS, fingerprints);
@@ -270,10 +273,47 @@ public class FilterEngine {
             domain.equals("onetrust.com") || domain.endsWith(".onetrust.com") ||
             domain.equals("disneyplus.com") || domain.endsWith(".disneyplus.com") ||
             domain.equals("amazon.com") || domain.endsWith(".amazon.com") || domain.endsWith(".media-amazon.com") ||
+            domain.equals("amazon.in") || domain.endsWith(".amazon.in") ||
             domain.equals("apple.com") || domain.endsWith(".apple.com") || domain.endsWith(".icloud.com") ||
             domain.equals("microsoft.com") || domain.endsWith(".microsoft.com") || domain.endsWith(".office.com") ||
             domain.equals("wikipedia.org") || domain.endsWith(".wikipedia.org") ||
-            domain.endsWith(".cloudfront.net") || domain.endsWith(".fastly.net") || domain.endsWith(".akamaized.net") || domain.endsWith(".akamaihd.net") ||
+            // Developer & Knowledge Platforms
+            domain.equals("github.com") || domain.endsWith(".github.com") ||
+            domain.equals("github.io") || domain.endsWith(".github.io") || domain.endsWith(".githubusercontent.com") ||
+            domain.equals("gitlab.com") || domain.endsWith(".gitlab.com") ||
+            domain.equals("stackoverflow.com") || domain.endsWith(".stackoverflow.com") ||
+            // AI Services
+            domain.equals("openai.com") || domain.endsWith(".openai.com") ||
+            domain.equals("chatgpt.com") || domain.endsWith(".chatgpt.com") ||
+            domain.equals("claude.ai") || domain.endsWith(".claude.ai") ||
+            domain.equals("anthropic.com") || domain.endsWith(".anthropic.com") ||
+            // E-Commerce & Daily Delivery Platforms
+            domain.equals("flipkart.com") || domain.endsWith(".flipkart.com") ||
+            domain.equals("swiggy.com") || domain.endsWith(".swiggy.com") ||
+            domain.equals("zomato.com") || domain.endsWith(".zomato.com") ||
+            domain.equals("zepto.now") || domain.endsWith(".zepto.now") ||
+            domain.equals("blinkit.com") || domain.endsWith(".blinkit.com") ||
+            // Parcel Logistics & Courier Tracking
+            domain.equals("dhl.com") || domain.endsWith(".dhl.com") ||
+            domain.equals("fedex.com") || domain.endsWith(".fedex.com") ||
+            domain.equals("ups.com") || domain.endsWith(".ups.com") ||
+            domain.equals("delhivery.com") || domain.endsWith(".delhivery.com") ||
+            domain.equals("bluedart.com") || domain.endsWith(".bluedart.com") ||
+            domain.equals("indiapost.gov.in") || domain.endsWith(".indiapost.gov.in") ||
+            domain.equals("tracker.gg") || domain.endsWith(".tracker.gg") ||
+            // Banking, UPI & Payment Infrastructure
+            domain.equals("paypal.com") || domain.endsWith(".paypal.com") ||
+            domain.equals("stripe.com") || domain.endsWith(".stripe.com") ||
+            domain.equals("razorpay.com") || domain.endsWith(".razorpay.com") ||
+            domain.equals("paytm.com") || domain.endsWith(".paytm.com") ||
+            domain.equals("phonepe.com") || domain.endsWith(".phonepe.com") ||
+            domain.equals("npci.org.in") || domain.endsWith(".npci.org.in") ||
+            // Public Sector, Education & CDNs
+            domain.endsWith(".gov.in") || domain.endsWith(".nic.in") ||
+            domain.endsWith(".gov") || domain.endsWith(".edu") ||
+            domain.equals("cloudflare.com") || domain.endsWith(".cloudflare.com") ||
+            domain.endsWith(".cloudfront.net") || domain.endsWith(".fastly.net") ||
+            domain.endsWith(".akamaized.net") || domain.endsWith(".akamaihd.net") ||
             domain.equals("connectivitycheck.gstatic.com") ||
             domain.equals("connectivitycheck.android.com") ||
             domain.equals("clients3.google.com");
@@ -301,6 +341,9 @@ public class FilterEngine {
         // 2. Suffix walk: sub.adservice.google.com -> adservice.google.com -> google.com
         String current = domain;
         while (current.contains(".")) {
+            if (SHARED_HOSTING_SUFFIXES.contains(current) && !domain.equals(current)) {
+                break;
+            }
             if (blockAds && AD_DOMAINS.contains(current)) {
                 return new MatchResult(Decision.BLOCK_AD, "Display & Video Ad", "Aegis_Ad_Core:" + current);
             }
@@ -325,17 +368,14 @@ public class FilterEngine {
             current = current.substring(nextDot + 1);
         }
 
-        // 3. Heuristic detection on standard ad/tracker/popup subdomains
+        // 3. Heuristic detection on standard ad/popup subdomains (strictly ad-serving, not logistics or analytics)
         if (blockAds && (domain.startsWith("ad.") || domain.startsWith("ads.") || 
             domain.startsWith("adservice.") || domain.startsWith("adserver.") ||
             domain.startsWith("adsystem.") || domain.startsWith("mobileads.") ||
             domain.startsWith("videoads.") || domain.startsWith("interstitial.") ||
             domain.startsWith("rewarded.") || domain.startsWith("adtrack.") ||
             domain.startsWith("banner.") || domain.startsWith("banners.") ||
-            domain.startsWith("pixel.") || domain.startsWith("telemetry.") ||
-            domain.startsWith("track.") || domain.startsWith("tracker.") ||
-            domain.startsWith("analytics.") || domain.startsWith("popup.") ||
-            domain.startsWith("popunder."))) {
+            domain.startsWith("popup.") || domain.startsWith("popunder."))) {
             return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
         }
 

@@ -28,7 +28,7 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -223,11 +223,15 @@ public class AegisVpnService extends VpnService implements Runnable {
 
         shouldStop.set(false);
         if (dnsWorkerPool == null || dnsWorkerPool.isShutdown()) {
-            dnsWorkerPool = new ThreadPoolExecutor(
-                8, 64, 60L, TimeUnit.SECONDS,
-                new SynchronousQueue<Runnable>(),
-                new ThreadPoolExecutor.CallerRunsPolicy()
+            ThreadPoolExecutor executor = new ThreadPoolExecutor(
+                16, 64, 30L, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<Runnable>(256),
+                new ThreadPoolExecutor.DiscardOldestPolicy()
             );
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD) {
+                executor.allowCoreThreadTimeOut(true);
+            }
+            dnsWorkerPool = executor;
         }
         workerThread = new Thread(this, "AegisVpnReader");
         workerThread.setPriority(Thread.MAX_PRIORITY);
@@ -339,38 +343,11 @@ public class AegisVpnService extends VpnService implements Runnable {
                         builder.addRoute("10.99.0.2", 32);
                     } catch (Throwable ignored) {}
 
-                    // DNS TRAP: Intercept hardcoded DNS queries to public resolvers
-                    // Traps Google, Cloudflare, Quad9, OpenDNS, AdGuard so apps/games cannot bypass AegisGuard!
-                    String[] trappedDns = new String[] {
-                        "8.8.8.8", "8.8.4.4",
-                        "1.1.1.1", "1.0.0.1",
-                        "9.9.9.9", "149.112.112.112",
-                        "208.67.222.222", "208.67.220.220",
-                        "94.140.14.14", "94.140.15.15"
-                    };
-                    for (String dnsIp : trappedDns) {
-                        try {
-                            builder.addRoute(dnsIp, 32);
-                        } catch (Throwable ignored) {}
-                    }
-
                     // Subnet IPv6: fd00:99::1/64 ensures fd00:99::2 is in local subnet
                     try {
                         builder.addAddress("fd00:99::1", 64);
                         builder.addDnsServer("fd00:99::2");
                         builder.addRoute("fd00:99::2", 128);
-
-                        // IPv6 DNS TRAP: Google, Cloudflare, Quad9
-                        String[] trappedDnsV6 = new String[] {
-                            "2001:4860:4860::8888", "2001:4860:4860::8844",
-                            "2606:4700:4700::1111", "2606:4700:4700::1001",
-                            "2620:fe::fe", "2620:fe::9"
-                        };
-                        for (String dnsV6 : trappedDnsV6) {
-                            try {
-                                builder.addRoute(dnsV6, 128);
-                            } catch (Throwable ignored) {}
-                        }
                     } catch (Throwable ignored) {}
 
                     builder.setBlocking(true);
