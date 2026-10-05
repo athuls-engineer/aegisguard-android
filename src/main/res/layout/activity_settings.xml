@@ -907,7 +907,7 @@
                 android:id="@+id/tvAboutVersion"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="AegisGuard v2.9.0 Ultra (Line-Rate Defense &amp; Streaming Bypass)"
+                android:text="AegisGuard v2.9.1 Ultra (Line-Rate Defense &amp; Streaming Bypass)"
                 android:textColor="@color/text_primary"
                 android:textSize="14sp"
                 android:textStyle="bold" />

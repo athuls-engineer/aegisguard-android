@@ -310,9 +310,9 @@ public class DnsForwarder {
         if (socket == null) return null;
 
         try {
-            // First wave: dispatch query simultaneously to top 6 Anycast & local resolvers
+            // First wave: dispatch query simultaneously to top 8 Anycast & local resolvers
             int numServers = upstreamServers.size();
-            int sendCount = Math.min(numServers, 6);
+            int sendCount = Math.min(numServers, 8);
             for (int i = 0; i < sendCount; i++) {
                 InetAddress server = upstreamServers.get(i);
                 if (server != null) {
@@ -329,6 +329,7 @@ public class DnsForwarder {
             long startTime = System.currentTimeMillis();
             long deadline = startTime + SOCKET_TIMEOUT_MS;
             boolean retried = false;
+            byte[] backupEmptyResponse = null;
             byte[] backupErrorResponse = null;
 
             while (System.currentTimeMillis() < deadline) {
@@ -339,7 +340,7 @@ public class DnsForwarder {
                 // Fast re-transmit wave after 180ms if no valid response received
                 if (!retried && (now - startTime) >= RETRY_INTERVAL_MS) {
                     retried = true;
-                    for (int i = 0; i < Math.min(numServers, 6); i++) {
+                    for (int i = 0; i < Math.min(numServers, 8); i++) {
                         InetAddress server = upstreamServers.get(i);
                         if (server != null) {
                             try {
@@ -360,11 +361,21 @@ public class DnsForwarder {
                         int respTxId = ((recvBuffer[0] & 0xFF) << 8) | (recvBuffer[1] & 0xFF);
                         if (respTxId == expectedTxId) {
                             int rcode = recvBuffer[3] & 0x0F;
+                            int ancount = ((recvBuffer[6] & 0xFF) << 8) | (recvBuffer[7] & 0xFF);
                             if (rcode == 0) {
-                                // NOERROR -> Clean winning answer! Return instantly
-                                return Arrays.copyOf(recvBuffer, respLen);
+                                if (ancount > 0) {
+                                    // NOERROR with Answer Records -> True winning answer! Return instantly
+                                    return Arrays.copyOf(recvBuffer, respLen);
+                                } else {
+                                    // NOERROR with ANCOUNT == 0 (NODATA).
+                                    // Buggy home router/ISP DNS often returns empty answers in <1ms for AAAA or un-cached records.
+                                    // Store as backup empty response and keep listening for positive answers with records from Google/Cloudflare!
+                                    if (backupEmptyResponse == null) {
+                                        backupEmptyResponse = Arrays.copyOf(recvBuffer, respLen);
+                                    }
+                                }
                             } else {
-                                // Store error (e.g. NOTIMP / REFUSED from local ISP) as backup,
+                                // Store error (e.g. NXDOMAIN / NOTIMP / REFUSED from local ISP) as backup,
                                 // but keep listening for clean NOERROR from Cloudflare/Google!
                                 if (backupErrorResponse == null) {
                                     backupErrorResponse = Arrays.copyOf(recvBuffer, respLen);
@@ -378,6 +389,9 @@ public class DnsForwarder {
                     }
                     break;
                 }
+            }
+            if (backupEmptyResponse != null) {
+                return backupEmptyResponse;
             }
             return backupErrorResponse;
         } catch (Exception e) {
@@ -450,6 +464,9 @@ public class DnsForwarder {
                     "reddit.com", "gateway.reddit.com", "gql.reddit.com", "redd.it",
                     // YouTube & Google
                     "youtube.com", "googlevideo.com", "ytimg.com", "google.com", "gstatic.com",
+                    // E-Commerce & Retail Edge CDNs
+                    "flipkart.com", "static-assets-web.flixcart.com", "rukminim1.flixcart.com", "rukminim2.flixcart.com",
+                    "amazon.in", "amazon.com", "myntra.com", "ajio.com",
                     // Cloudflare
                     "cloudflare.com"
                 };

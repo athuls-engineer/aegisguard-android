@@ -312,10 +312,28 @@ public class FilterEngine {
             domain.equals("anthropic.com") || domain.endsWith(".anthropic.com") ||
             // E-Commerce & Daily Delivery Platforms
             domain.equals("flipkart.com") || domain.endsWith(".flipkart.com") ||
+            domain.equals("flixcart.com") || domain.endsWith(".flixcart.com") ||
+            domain.equals("myntra.com") || domain.endsWith(".myntra.com") ||
+            domain.equals("myntassets.com") || domain.endsWith(".myntassets.com") ||
+            domain.equals("ajio.com") || domain.endsWith(".ajio.com") ||
+            domain.equals("meesho.com") || domain.endsWith(".meesho.com") ||
+            domain.equals("tatacliq.com") || domain.endsWith(".tatacliq.com") ||
+            domain.equals("nykaa.com") || domain.endsWith(".nykaa.com") ||
+            domain.equals("jiomart.com") || domain.endsWith(".jiomart.com") ||
             domain.equals("swiggy.com") || domain.endsWith(".swiggy.com") ||
             domain.equals("zomato.com") || domain.endsWith(".zomato.com") ||
             domain.equals("zepto.now") || domain.endsWith(".zepto.now") ||
             domain.equals("blinkit.com") || domain.endsWith(".blinkit.com") ||
+            domain.equals("bigbasket.com") || domain.endsWith(".bigbasket.com") ||
+            domain.equals("ebay.com") || domain.endsWith(".ebay.com") ||
+            domain.equals("ebayimg.com") || domain.endsWith(".ebayimg.com") ||
+            domain.equals("aliexpress.com") || domain.endsWith(".aliexpress.com") ||
+            domain.equals("alicdn.com") || domain.endsWith(".alicdn.com") ||
+            domain.equals("walmart.com") || domain.endsWith(".walmart.com") ||
+            domain.equals("walmartimages.com") || domain.endsWith(".walmartimages.com") ||
+            domain.equals("target.com") || domain.endsWith(".target.com") ||
+            domain.equals("etsy.com") || domain.endsWith(".etsy.com") ||
+            domain.equals("ssl-images-amazon.com") || domain.endsWith(".ssl-images-amazon.com") ||
             // Parcel Logistics & Courier Tracking
             domain.equals("dhl.com") || domain.endsWith(".dhl.com") ||
             domain.equals("fedex.com") || domain.endsWith(".fedex.com") ||
@@ -401,10 +419,11 @@ public class FilterEngine {
             domain.startsWith("ads-cdn.") || domain.startsWith("admanager.") ||
             domain.startsWith("mobileads.") || domain.startsWith("videoads.") ||
             domain.startsWith("interstitial.") || domain.startsWith("rewarded.") ||
-            domain.startsWith("adtrack.") || domain.startsWith("banner.") ||
-            domain.startsWith("banners.") || domain.startsWith("bannerads.") ||
-            domain.startsWith("banner-ads.") || domain.startsWith("inappads.") ||
-            domain.startsWith("static-ads.") || domain.startsWith("mads.") ||
+            domain.startsWith("adtrack.") || domain.startsWith("adtracker.") ||
+            domain.startsWith("adx.") || domain.startsWith("appads.") || domain.startsWith("app-ads.") ||
+            domain.startsWith("banner.") || domain.startsWith("banners.") ||
+            domain.startsWith("bannerads.") || domain.startsWith("banner-ads.") ||
+            domain.startsWith("inappads.") || domain.startsWith("static-ads.") || domain.startsWith("mads.") ||
             domain.startsWith("nativeads.") || domain.startsWith("displayads.") ||
             domain.startsWith("popup.") || domain.startsWith("popunder."))) {
             return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
