@@ -181,17 +181,7 @@ public class DnsForwarder {
                 newServers.add(InetAddress.getByName("94.140.15.15"));
             } else {
                 // "racing" - Dual-Stack Anycast Race:
-                // 1. Tier-1 Global Anycast (Cloudflare & Google): Sub-5ms response globally
-                newServers.add(InetAddress.getByName("1.1.1.1"));
-                newServers.add(InetAddress.getByName("8.8.8.8"));
-                newServers.add(InetAddress.getByName("1.0.0.1"));
-                newServers.add(InetAddress.getByName("8.8.4.4"));
-                try {
-                    newServers.add(InetAddress.getByName("2606:4700:4700::1111"));
-                    newServers.add(InetAddress.getByName("2001:4860:4860::8888"));
-                } catch (Exception ignored) {}
-
-                // 2. Physical ISP / Local Router Gateway DNS (IPv4 & IPv6) - filtered
+                // 1. Physical ISP / Local Router Gateway DNS (IPv4 & IPv6) - Top priority for line-rate carrier CDN routing (Jio/Airtel/Wi-Fi Edge)
                 ConnectivityManager cm = (ConnectivityManager) vpnService.getSystemService(Context.CONNECTIVITY_SERVICE);
                 if (cm != null) {
                     Network targetNetwork = this.underlyingNetwork;
@@ -216,6 +206,22 @@ public class DnsForwarder {
                         }
                     }
                 }
+
+                // 2. Google Public DNS (IPv4 & IPv6) - Full EDNS Client Subnet (ECS) support guarantees optimal regional CDN edge
+                newServers.add(InetAddress.getByName("8.8.8.8"));
+                newServers.add(InetAddress.getByName("8.8.4.4"));
+                try {
+                    newServers.add(InetAddress.getByName("2001:4860:4860::8888"));
+                    newServers.add(InetAddress.getByName("2001:4860:4860::8844"));
+                } catch (Exception ignored) {}
+
+                // 3. Cloudflare Anycast (IPv4 & IPv6) - Sub-5ms ultra-resilient fallback
+                newServers.add(InetAddress.getByName("1.1.1.1"));
+                newServers.add(InetAddress.getByName("1.0.0.1"));
+                try {
+                    newServers.add(InetAddress.getByName("2606:4700:4700::1111"));
+                    newServers.add(InetAddress.getByName("2606:4700:4700::1001"));
+                } catch (Exception ignored) {}
             }
 
             if (!newServers.isEmpty()) {
@@ -304,9 +310,9 @@ public class DnsForwarder {
         if (socket == null) return null;
 
         try {
-            // First wave: dispatch query simultaneously to top 4 Anycast resolvers
+            // First wave: dispatch query simultaneously to top 6 Anycast & local resolvers
             int numServers = upstreamServers.size();
-            int sendCount = Math.min(numServers, 4);
+            int sendCount = Math.min(numServers, 6);
             for (int i = 0; i < sendCount; i++) {
                 InetAddress server = upstreamServers.get(i);
                 if (server != null) {
@@ -333,7 +339,7 @@ public class DnsForwarder {
                 // Fast re-transmit wave after 180ms if no valid response received
                 if (!retried && (now - startTime) >= RETRY_INTERVAL_MS) {
                     retried = true;
-                    for (int i = 0; i < Math.min(numServers, 4); i++) {
+                    for (int i = 0; i < Math.min(numServers, 6); i++) {
                         InetAddress server = upstreamServers.get(i);
                         if (server != null) {
                             try {
@@ -430,12 +436,16 @@ public class DnsForwarder {
                 } catch (InterruptedException ignored) {}
 
                 String[] hotDomains = new String[] {
-                    // Instagram & Meta
+                    // WhatsApp Core, Relay & Media CDN Gateways (Instant Photo & Video Sending)
+                    "whatsapp.com", "web.whatsapp.com", "v.whatsapp.net", "media.whatsapp.net",
+                    "mms.whatsapp.net", "pps.whatsapp.net", "g.whatsapp.net", "static.whatsapp.net",
+                    // Instagram & Meta Upload Infrastructure
                     "instagram.com", "graph.instagram.com", "i.instagram.com", "cdninstagram.com", "threads.net",
-                    // WhatsApp
-                    "whatsapp.com", "web.whatsapp.com", "v.whatsapp.net",
-                    // Telegram
-                    "telegram.org", "t.me",
+                    "scontent.cdninstagram.com", "rupload.facebook.com", "upload.facebook.com",
+                    // Telegram Core & Video Notes
+                    "telegram.org", "t.me", "telesco.pe", "venus.web.telegram.org",
+                    // Discord Media & Voice
+                    "discord.com", "discord.gg", "cdn.discordapp.com", "media.discordapp.net",
                     // Reddit
                     "reddit.com", "gateway.reddit.com", "gql.reddit.com", "redd.it",
                     // YouTube & Google

@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">AegisGuard</string>
     <string name="tile_name">AegisGuard</string>
-    <string name="version_badge">v2.8.9 Ultra</string>
+    <string name="version_badge">v2.9.0 Ultra</string>
     <string name="status_protected">PROTECTED</string>
     <string name="status_paused">PAUSED</string>
     <string name="status_protected_desc">Tap to pause shield system</string>
@@ -25,7 +25,7 @@
 
     <!-- Settings Strings -->
     <string name="settings_title">Settings &amp; Defense</string>
-    <string name="settings_subtitle">Engine Configuration • v2.8.9 Ultra</string>
+    <string name="settings_subtitle">Engine Configuration • v2.9.0 Ultra</string>
     
     <string name="section_stats_cache">STATISTICS &amp; CACHE</string>
     <string name="reset_stats_title">Reset All Statistics</string>

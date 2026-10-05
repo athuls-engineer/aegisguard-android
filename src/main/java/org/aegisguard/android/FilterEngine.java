@@ -255,8 +255,16 @@ public class FilterEngine {
         return domain.equals("telegram.org") || domain.endsWith(".telegram.org") ||
             domain.equals("telegram.me") || domain.endsWith(".telegram.me") ||
             domain.equals("t.me") || domain.endsWith(".t.me") ||
+            domain.equals("telesco.pe") || domain.endsWith(".telesco.pe") ||
+            domain.equals("telegram-cdn.org") || domain.endsWith(".telegram-cdn.org") ||
             domain.equals("whatsapp.com") || domain.endsWith(".whatsapp.com") ||
             domain.equals("whatsapp.net") || domain.endsWith(".whatsapp.net") ||
+            domain.equals("wa.me") || domain.endsWith(".wa.me") ||
+            domain.equals("signal.org") || domain.endsWith(".signal.org") ||
+            domain.equals("whispersystems.org") || domain.endsWith(".whispersystems.org") ||
+            domain.equals("messenger.com") || domain.endsWith(".messenger.com") ||
+            domain.equals("snapchat.com") || domain.endsWith(".snapchat.com") ||
+            domain.equals("sc-cdn.net") || domain.endsWith(".sc-cdn.net") ||
             domain.equals("google.com") || domain.endsWith(".google.com") ||
             domain.equals("youtube.com") || domain.endsWith(".youtube.com") ||
             domain.endsWith(".googlevideo.com") || domain.endsWith(".ytimg.com") ||
@@ -276,6 +284,8 @@ public class FilterEngine {
             domain.equals("reddit.com") || domain.endsWith(".reddit.com") || domain.endsWith(".redditmedia.com") || domain.endsWith(".redd.it") ||
             domain.equals("redditstatic.com") || domain.endsWith(".redditstatic.com") ||
             domain.equals("discord.com") || domain.endsWith(".discord.com") || domain.equals("discord.gg") || domain.endsWith(".discord.gg") ||
+            domain.equals("discordapp.com") || domain.endsWith(".discordapp.com") || domain.equals("discordapp.net") || domain.endsWith(".discordapp.net") ||
+            domain.equals("discord.media") || domain.endsWith(".discord.media") || domain.equals("discordcdn.com") || domain.endsWith(".discordcdn.com") ||
             domain.equals("netflix.com") || domain.endsWith(".netflix.com") || domain.endsWith(".nflxvideo.net") || domain.endsWith(".nflximg.net") ||
             // Disney+ Hotstar, JioHotstar & Streaming Media Infrastructure (Eliminates NET_101 & DRM errors)
             domain.equals("hotstar.com") || domain.endsWith(".hotstar.com") ||
