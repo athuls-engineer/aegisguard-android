@@ -414,22 +414,30 @@ public class DnsForwarder {
         return resp;
     }
 
+    private final java.util.concurrent.atomic.AtomicBoolean isEvicting = new java.util.concurrent.atomic.AtomicBoolean(false);
+
     private void putCache(String key, byte[] rawResponse) {
-        if (cache.size() >= MAX_CACHE_ENTRIES) {
-            long now = System.currentTimeMillis();
-            int evicted = 0;
-            for (Map.Entry<String, CacheEntry> entry : cache.entrySet()) {
-                if (now > entry.getValue().staleUntil) {
-                    cache.remove(entry.getKey());
-                    evicted++;
-                    if (evicted > 512) break;
-                }
-            }
-            if (cache.size() >= MAX_CACHE_ENTRIES) {
-                int count = 0;
-                for (String k : cache.keySet()) {
-                    cache.remove(k);
-                    if (++count > 256) break;
+        if (cache.size() >= MAX_CACHE_ENTRIES - 256) {
+            if (isEvicting.compareAndSet(false, true)) {
+                try {
+                    long now = System.currentTimeMillis();
+                    int evicted = 0;
+                    for (Map.Entry<String, CacheEntry> entry : cache.entrySet()) {
+                        if (now > entry.getValue().staleUntil) {
+                            cache.remove(entry.getKey());
+                            evicted++;
+                            if (evicted > 512) break;
+                        }
+                    }
+                    if (cache.size() >= MAX_CACHE_ENTRIES - 256) {
+                        int count = 0;
+                        for (String k : cache.keySet()) {
+                            cache.remove(k);
+                            if (++count > 512) break;
+                        }
+                    }
+                } finally {
+                    isEvicting.set(false);
                 }
             }
         }

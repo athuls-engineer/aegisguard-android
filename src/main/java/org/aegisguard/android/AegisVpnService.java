@@ -276,17 +276,51 @@ public class AegisVpnService extends VpnService implements Runnable {
             vpnInterface = null;
         }
 
-        saveStats();
+        forceSaveStats();
         stopForeground(true);
     }
 
+    private volatile long lastStatsSave = 0;
     private void saveStats() {
+        long now = System.currentTimeMillis();
+        if (now - lastStatsSave >= 5000L) { // Throttle disk I/O to at most once per 5 seconds
+            lastStatsSave = now;
+            forceSaveStats();
+        }
+    }
+
+    private void forceSaveStats() {
         if (prefs != null) {
             prefs.edit()
                 .putLong("ads_blocked", adsBlockedCount.get())
                 .putLong("trackers_blocked", trackersBlockedCount.get())
                 .putLong("bytes_saved", bytesSaved.get())
                 .apply();
+        }
+    }
+
+    @Override
+    public void onLowMemory() {
+        super.onLowMemory();
+        if (dnsForwarder != null) {
+            dnsForwarder.drainSocketPool();
+            dnsForwarder.clearCache();
+        }
+        forceSaveStats();
+        System.gc();
+    }
+
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        if (level >= TRIM_MEMORY_RUNNING_LOW) {
+            if (dnsForwarder != null) {
+                dnsForwarder.drainSocketPool();
+                if (level >= TRIM_MEMORY_RUNNING_CRITICAL) {
+                    dnsForwarder.clearCache();
+                }
+            }
+            saveStats();
         }
     }
 

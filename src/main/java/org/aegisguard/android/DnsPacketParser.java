@@ -60,7 +60,7 @@ public class DnsPacketParser {
 
         if (ipVersion == 4) {
             ipHeaderLen = (packet[0] & 0x0F) * 4;
-            if (length < ipHeaderLen + 8) return null;
+            if (ipHeaderLen < 20 || length < ipHeaderLen + 8) return null;
             protocol = packet[9] & 0xFF;
             if (protocol != 17) return null; // Protocol 17 = UDP
 
@@ -112,7 +112,7 @@ public class DnsPacketParser {
                 break;
             }
             pos++;
-            if (pos + len > maxPos) return null;
+            if (len > 63 || pos + len > maxPos || domain.length() + len > 255) return null;
 
             for (int i = 0; i < len; i++) {
                 domain.append((char) packet[pos + i]);
