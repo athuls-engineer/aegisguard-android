@@ -270,6 +270,7 @@ public class AegisGuardStressTest {
             "whatsapp.com", "web.whatsapp.com", "media.whatsapp.net", "mms.whatsapp.net",
             "telegram.org", "t.me", "telesco.pe", "telegram-cdn.org",
             "google.com", "youtube.com", "googlevideo.com", "ytimg.com",
+            "ggpht.com", "googleapis.com", "gstatic.com", "googleusercontent.com", "gvt1.com", "gvt2.com", "youtu.be", "1e100.net",
             "hotstar.com", "hotstarcdn.com", "starott.com", "netflix.com",
             "npci.org.in", "paytm.com", "phonepe.com", "razorpay.com",
             "cloudflare.com", "fastly.net", "akamaized.net", "openai.com", "chatgpt.com"
@@ -688,7 +689,7 @@ public class AegisGuardStressTest {
         private final java.util.concurrent.atomic.AtomicBoolean isEvicting = new java.util.concurrent.atomic.AtomicBoolean(false);
 
         void put(String key, byte[] payload, long ttlMs) {
-            if (map.size() >= maxEntries - 256) {
+            if (map.size() >= maxEntries - 512) {
                 if (isEvicting.compareAndSet(false, true)) {
                     try {
                         long now = System.currentTimeMillis();
@@ -697,19 +698,28 @@ public class AegisGuardStressTest {
                             if (now > e.getValue().staleUntil) {
                                 map.remove(e.getKey());
                                 evicted++;
-                                if (evicted > 512) break;
+                                if (evicted > 1024) break;
                             }
                         }
-                        if (map.size() >= maxEntries - 256) {
+                        if (map.size() >= maxEntries - 512) {
                             int count = 0;
                             for (String k : map.keySet()) {
                                 map.remove(k);
-                                if (++count > 512) break;
+                                if (++count > 1024) break;
                             }
                         }
                     } finally {
                         isEvicting.set(false);
                     }
+                }
+            }
+            while (map.size() >= maxEntries) {
+                Iterator<String> it = map.keySet().iterator();
+                if (it.hasNext()) {
+                    it.next();
+                    it.remove();
+                } else {
+                    break;
                 }
             }
             map.put(key, new CacheEntry(payload, ttlMs));

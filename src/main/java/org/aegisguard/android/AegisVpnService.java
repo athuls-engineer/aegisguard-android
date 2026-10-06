@@ -175,7 +175,7 @@ public class AegisVpnService extends VpnService implements Runnable {
                         }
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
                             try {
-                                setUnderlyingNetworks(null);
+                                setUnderlyingNetworks(new Network[]{ network });
                             } catch (Exception ignored) {}
                         }
                     }
@@ -191,6 +191,11 @@ public class AegisVpnService extends VpnService implements Runnable {
                     public void onLost(Network network) {
                         if (dnsForwarder != null) {
                             dnsForwarder.drainSocketPool();
+                        }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                            try {
+                                setUnderlyingNetworks(null);
+                            } catch (Exception ignored) {}
                         }
                     }
                 };
@@ -418,6 +423,12 @@ public class AegisVpnService extends VpnService implements Runnable {
                     // By adding them to disallowed applications, Android routes their connections directly
                     // over the physical Wi-Fi/LTE network with NET_CAPABILITY_NOT_VPN, eliminating NET_101.
                     String[] streamingApps = new String[] {
+                        // YouTube Stack (Native Line-Rate 4K60 Streaming, Zero Playback Buffering)
+                        "com.google.android.youtube",
+                        "com.google.android.apps.youtube.music",
+                        "com.google.android.apps.youtube.kids",
+                        "com.google.android.youtube.tv",
+                        // OTT & Regional Streaming
                         "in.startv.hotstar",                // Disney+ Hotstar / JioHotstar India
                         "in.startv.hotstar.dplus",          // Hotstar Variant
                         "in.startv.hotstar.dplus.tv",       // Hotstar Android TV
@@ -452,10 +463,18 @@ public class AegisVpnService extends VpnService implements Runnable {
                         break;
                     }
 
-                    // 5. Tell Android to dynamically use the system's default network for underlying connectivity
+                    // 5. Tell Android to dynamically use the system's active network for underlying connectivity
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
                         try {
-                            setUnderlyingNetworks(null);
+                            Network net = null;
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && connectivityManager != null) {
+                                net = connectivityManager.getActiveNetwork();
+                            }
+                            if (net != null) {
+                                setUnderlyingNetworks(new Network[]{ net });
+                            } else {
+                                setUnderlyingNetworks(null);
+                            }
                         } catch (Exception ignored) {}
                     }
 

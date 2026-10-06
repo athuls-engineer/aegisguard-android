@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="org.aegisguard.android"
-    android:versionCode="20901"
-    android:versionName="2.9.1">
+    android:versionCode="20902"
+    android:versionName="2.9.2">
 
     <uses-sdk
         android:minSdkVersion="24"
@@ -19,6 +19,10 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 
     <queries>
+        <package android:name="com.google.android.youtube" />
+        <package android:name="com.google.android.apps.youtube.music" />
+        <package android:name="com.google.android.apps.youtube.kids" />
+        <package android:name="com.google.android.youtube.tv" />
         <package android:name="in.startv.hotstar" />
         <package android:name="in.startv.hotstar.dplus" />
         <package android:name="in.startv.hotstar.dplus.tv" />

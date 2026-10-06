@@ -82,7 +82,7 @@ public class FilterEngine {
             "adservice.google.com", "admob.com", "media.admob.com", "pubads.g.doubleclick.net",
             "securepubads.g.doubleclick.net", "pagead2.googleadservices.com", "googleadservices.com",
             "ads.google.com", "adsyndication.com", "imasdk.googleapis.com", "partnerad.l.google.com",
-            "video-stats.l.google.com", "adclick.g.doubleclick.net", "ade.googlesyndication.com",
+            "adclick.g.doubleclick.net", "ade.googlesyndication.com",
             "cm.g.doubleclick.net", "stats.g.doubleclick.net", "adtrafficquality.google",
             "ep1.adtrafficquality.google", "admob.google.com", "googlemobileads.google.com",
             "app-measurement.com",
@@ -140,7 +140,7 @@ public class FilterEngine {
             "ads.twitch.tv", "ad.twitch.tv",
             "ads.spotify.com", "ads-fa.spotify.com", "adstudio.spotify.com",
             "audio-akp-b2-spotify-com.akamaized.net", "audio-akp-spotify-com.akamaized.net",
-            "ad.youtube.com", "ads.youtube.com", "ad.flurry.com", "ad.smaato.net",
+            "ad.flurry.com", "ad.smaato.net",
             "innovid.com", "spotxchange.com", "spotx.tv", "tremorhub.com",
             "springserve.com", "beachfront.com", "publica.com", "telaria.com",
             "freewheel.tv", "freewheel.com", "startappservice.com", "startapp.com",
@@ -188,7 +188,7 @@ public class FilterEngine {
             "ads.twitter.com",
             "ads.pinterest.com", "ads.linkedin.com",
             // In-Built Video Streaming & Mobile Surveillance Beacons
-            "spade.twitch.tv", "countess.twitch.tv", "s.youtube.com",
+            "spade.twitch.tv", "countess.twitch.tv",
             "adeventtracker.spotify.com", "mc.yandex.ru", "data.flurry.com",
             "mobile.pipe.aria.microsoft.com"
         };
@@ -265,9 +265,21 @@ public class FilterEngine {
             domain.equals("messenger.com") || domain.endsWith(".messenger.com") ||
             domain.equals("snapchat.com") || domain.endsWith(".snapchat.com") ||
             domain.equals("sc-cdn.net") || domain.endsWith(".sc-cdn.net") ||
+            // Google & YouTube Core Infrastructure & Streaming Delivery
             domain.equals("google.com") || domain.endsWith(".google.com") ||
             domain.equals("youtube.com") || domain.endsWith(".youtube.com") ||
-            domain.endsWith(".googlevideo.com") || domain.endsWith(".ytimg.com") ||
+            domain.equals("googlevideo.com") || domain.endsWith(".googlevideo.com") ||
+            domain.equals("ytimg.com") || domain.endsWith(".ytimg.com") ||
+            domain.equals("ggpht.com") || domain.endsWith(".ggpht.com") ||
+            domain.equals("googleapis.com") || domain.endsWith(".googleapis.com") ||
+            domain.equals("gstatic.com") || domain.endsWith(".gstatic.com") ||
+            domain.equals("googleusercontent.com") || domain.endsWith(".googleusercontent.com") ||
+            domain.equals("gvt1.com") || domain.endsWith(".gvt1.com") ||
+            domain.equals("gvt2.com") || domain.endsWith(".gvt2.com") ||
+            domain.equals("youtu.be") || domain.endsWith(".youtu.be") ||
+            domain.equals("youtube-nocookie.com") || domain.endsWith(".youtube-nocookie.com") ||
+            domain.equals("1e100.net") || domain.endsWith(".1e100.net") ||
+            domain.equals("android.com") || domain.endsWith(".android.com") ||
             domain.equals("twitch.tv") || domain.endsWith(".twitch.tv") ||
             domain.endsWith(".ttvnw.net") || domain.endsWith(".live-video.net") || domain.endsWith(".twitchcdn.net") ||
             domain.equals("spotify.com") || domain.endsWith(".spotify.com") ||
@@ -355,6 +367,16 @@ public class FilterEngine {
             domain.equals("cloudflare.com") || domain.endsWith(".cloudflare.com") ||
             domain.endsWith(".cloudfront.net") || domain.endsWith(".fastly.net") ||
             domain.endsWith(".akamaized.net") || domain.endsWith(".akamaihd.net") ||
+            domain.equals("cdn77.org") || domain.endsWith(".cdn77.org") ||
+            domain.equals("edgecastcdn.net") || domain.endsWith(".edgecastcdn.net") ||
+            domain.equals("azureedge.net") || domain.endsWith(".azureedge.net") ||
+            domain.equals("digicert.com") || domain.endsWith(".digicert.com") ||
+            domain.equals("letsencrypt.org") || domain.endsWith(".letsencrypt.org") ||
+            // Global Search Engines & Browser Infrastructure
+            domain.equals("bing.com") || domain.endsWith(".bing.com") ||
+            domain.equals("yahoo.com") || domain.endsWith(".yahoo.com") ||
+            domain.equals("duckduckgo.com") || domain.endsWith(".duckduckgo.com") ||
+            domain.equals("brave.com") || domain.endsWith(".brave.com") ||
             domain.equals("connectivitycheck.gstatic.com") ||
             domain.equals("connectivitycheck.android.com") ||
             domain.equals("clients3.google.com");

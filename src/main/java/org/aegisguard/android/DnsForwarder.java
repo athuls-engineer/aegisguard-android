@@ -43,12 +43,22 @@ import java.util.concurrent.Executors;
 public class DnsForwarder {
 
     private static final String TAG = "DnsForwarder";
-    private static final int SOCKET_TIMEOUT_MS = 2000;
-    private static final int RETRY_INTERVAL_MS = 180;
+    private static final int SOCKET_TIMEOUT_MS = 600;
+    private static final int RETRY_INTERVAL_MS = 100;
     private static final long FRESH_TTL_MS = 300_000L; // 5 minutes fresh
     private static final long STALE_USABLE_MS = 24 * 60 * 60 * 1000L; // 24 hours stale-while-revalidate
     private static final int MAX_CACHE_ENTRIES = 8192;
     private static final int MAX_POOL_SIZE = 16;
+
+    private static boolean isTier1Resolver(InetAddress addr) {
+        if (addr == null) return false;
+        String host = addr.getHostAddress();
+        if (host == null) return false;
+        return host.equals("8.8.8.8") || host.equals("8.8.4.4") ||
+               host.equals("1.1.1.1") || host.equals("1.0.0.1") ||
+               host.equals("9.9.9.9") || host.equals("149.112.112.112") ||
+               host.startsWith("2001:4860:") || host.startsWith("2606:4700:");
+    }
 
     private static class CacheEntry {
         final byte[] rawPayload;
@@ -106,6 +116,7 @@ public class DnsForwarder {
     private DatagramSocket obtainSocket() {
         DatagramSocket socket = socketPool.poll();
         if (socket != null && !socket.isClosed()) {
+            drainSocket(socket);
             return socket;
         }
         try {
@@ -115,6 +126,17 @@ public class DnsForwarder {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private static void drainSocket(DatagramSocket socket) {
+        try {
+            socket.setSoTimeout(1);
+            byte[] discard = new byte[1024];
+            DatagramPacket p = new DatagramPacket(discard, discard.length);
+            while (true) {
+                socket.receive(p);
+            }
+        } catch (Exception ignored) {}
     }
 
     private void releaseSocket(DatagramSocket socket) {
@@ -181,7 +203,12 @@ public class DnsForwarder {
                 newServers.add(InetAddress.getByName("94.140.15.15"));
             } else {
                 // "racing" - Dual-Stack Anycast Race:
-                // 1. Physical ISP / Local Router Gateway DNS (IPv4 & IPv6) - Top priority for line-rate carrier CDN routing (Jio/Airtel/Wi-Fi Edge)
+                // 1. Google Public DNS (IPv4) - Full EDNS Client Subnet (ECS) support guarantees optimal regional CDN edge
+                newServers.add(InetAddress.getByName("8.8.8.8"));
+                // 2. Cloudflare Anycast (IPv4) - Sub-5ms ultra-resilient fallback
+                newServers.add(InetAddress.getByName("1.1.1.1"));
+
+                // 3. Physical ISP / Local Router Gateway DNS (IPv4 & IPv6)
                 ConnectivityManager cm = (ConnectivityManager) vpnService.getSystemService(Context.CONNECTIVITY_SERVICE);
                 if (cm != null) {
                     Network targetNetwork = this.underlyingNetwork;
@@ -193,7 +220,7 @@ public class DnsForwarder {
                         LinkProperties lp = cm.getLinkProperties(targetNetwork);
                         if (lp != null && lp.getDnsServers() != null) {
                             for (InetAddress addr : lp.getDnsServers()) {
-                                if (!addr.isLoopbackAddress() && !addr.isAnyLocalAddress()) {
+                                if (!addr.isLoopbackAddress() && !addr.isAnyLocalAddress() && !addr.isLinkLocalAddress()) {
                                     String host = addr.getHostAddress();
                                     if (host != null && (host.startsWith("10.99.") || host.startsWith("fd00:99:"))) {
                                         continue; // Guard: NEVER add self virtual VPN TUN addresses!
@@ -207,20 +234,12 @@ public class DnsForwarder {
                     }
                 }
 
-                // 2. Google Public DNS (IPv4 & IPv6) - Full EDNS Client Subnet (ECS) support guarantees optimal regional CDN edge
-                newServers.add(InetAddress.getByName("8.8.8.8"));
+                // 4. Secondary Tier-1 Anycast Upstreams
                 newServers.add(InetAddress.getByName("8.8.4.4"));
-                try {
-                    newServers.add(InetAddress.getByName("2001:4860:4860::8888"));
-                    newServers.add(InetAddress.getByName("2001:4860:4860::8844"));
-                } catch (Exception ignored) {}
-
-                // 3. Cloudflare Anycast (IPv4 & IPv6) - Sub-5ms ultra-resilient fallback
-                newServers.add(InetAddress.getByName("1.1.1.1"));
                 newServers.add(InetAddress.getByName("1.0.0.1"));
                 try {
                     newServers.add(InetAddress.getByName("2606:4700:4700::1111"));
-                    newServers.add(InetAddress.getByName("2606:4700:4700::1001"));
+                    newServers.add(InetAddress.getByName("2001:4860:4860::8888"));
                 } catch (Exception ignored) {}
             }
 
@@ -297,13 +316,13 @@ public class DnsForwarder {
             return rawResponse;
         }
 
-        // 3. Fallback: return null so client resends naturally without hard-failing with SERVFAIL
-        return null;
+        // 3. Fallback: Synthesize clean SERVFAIL so Android client handles error immediately without a 5-second hang!
+        return createServfailResponse(queryDnsPayload, query.txId);
     }
 
     /**
      * Executes clean Dual-Stack Anycast racing using pooled protected sockets.
-     * Includes fast UDP re-transmission at 180ms to defeat packet loss.
+     * Includes fast UDP re-transmission at 100ms to defeat packet loss.
      */
     private byte[] forwardUpstream(byte[] queryPayload, int expectedTxId) {
         DatagramSocket socket = obtainSocket();
@@ -330,6 +349,7 @@ public class DnsForwarder {
             long deadline = startTime + SOCKET_TIMEOUT_MS;
             boolean retried = false;
             byte[] backupEmptyResponse = null;
+            long emptyReceivedTime = 0;
             byte[] backupErrorResponse = null;
 
             while (System.currentTimeMillis() < deadline) {
@@ -337,7 +357,12 @@ public class DnsForwarder {
                 int remaining = (int) (deadline - now);
                 if (remaining <= 0) break;
 
-                // Fast re-transmit wave after 180ms if no valid response received
+                // If local router returned empty NODATA, wait at most 40ms for Tier-1 with real records!
+                if (backupEmptyResponse != null && (now - emptyReceivedTime) >= 40) {
+                    return backupEmptyResponse;
+                }
+
+                // Fast re-transmit wave after 100ms if no valid response received
                 if (!retried && (now - startTime) >= RETRY_INTERVAL_MS) {
                     retried = true;
                     for (int i = 0; i < Math.min(numServers, 8); i++) {
@@ -362,21 +387,26 @@ public class DnsForwarder {
                         if (respTxId == expectedTxId) {
                             int rcode = recvBuffer[3] & 0x0F;
                             int ancount = ((recvBuffer[6] & 0xFF) << 8) | (recvBuffer[7] & 0xFF);
+                            boolean isTier1 = isTier1Resolver(recvPacket.getAddress());
+
                             if (rcode == 0) {
                                 if (ancount > 0) {
                                     // NOERROR with Answer Records -> True winning answer! Return instantly
                                     return Arrays.copyOf(recvBuffer, respLen);
                                 } else {
                                     // NOERROR with ANCOUNT == 0 (NODATA).
-                                    // Buggy home router/ISP DNS often returns empty answers in <1ms for AAAA or un-cached records.
-                                    // Store as backup empty response and keep listening for positive answers with records from Google/Cloudflare!
+                                    // If from Tier-1 (Cloudflare/Google/Quad9), this is authoritative confirmation
+                                    // that the domain has no records of this type (e.g. no AAAA record).
+                                    // Return immediately in 5-15ms! Never wait!
+                                    if (isTier1) {
+                                        return Arrays.copyOf(recvBuffer, respLen);
+                                    }
                                     if (backupEmptyResponse == null) {
                                         backupEmptyResponse = Arrays.copyOf(recvBuffer, respLen);
+                                        emptyReceivedTime = System.currentTimeMillis();
                                     }
                                 }
                             } else {
-                                // Store error (e.g. NXDOMAIN / NOTIMP / REFUSED from local ISP) as backup,
-                                // but keep listening for clean NOERROR from Cloudflare/Google!
                                 if (backupErrorResponse == null) {
                                     backupErrorResponse = Arrays.copyOf(recvBuffer, respLen);
                                 }
@@ -417,7 +447,7 @@ public class DnsForwarder {
     private final java.util.concurrent.atomic.AtomicBoolean isEvicting = new java.util.concurrent.atomic.AtomicBoolean(false);
 
     private void putCache(String key, byte[] rawResponse) {
-        if (cache.size() >= MAX_CACHE_ENTRIES - 256) {
+        if (cache.size() >= MAX_CACHE_ENTRIES - 512) {
             if (isEvicting.compareAndSet(false, true)) {
                 try {
                     long now = System.currentTimeMillis();
@@ -426,19 +456,28 @@ public class DnsForwarder {
                         if (now > entry.getValue().staleUntil) {
                             cache.remove(entry.getKey());
                             evicted++;
-                            if (evicted > 512) break;
+                            if (evicted > 1024) break;
                         }
                     }
-                    if (cache.size() >= MAX_CACHE_ENTRIES - 256) {
+                    if (cache.size() >= MAX_CACHE_ENTRIES - 512) {
                         int count = 0;
                         for (String k : cache.keySet()) {
                             cache.remove(k);
-                            if (++count > 512) break;
+                            if (++count > 1024) break;
                         }
                     }
                 } finally {
                     isEvicting.set(false);
                 }
+            }
+        }
+        while (cache.size() >= MAX_CACHE_ENTRIES) {
+            java.util.Iterator<String> it = cache.keySet().iterator();
+            if (it.hasNext()) {
+                it.next();
+                it.remove();
+            } else {
+                break;
             }
         }
         cache.put(key, new CacheEntry(rawResponse, FRESH_TTL_MS));
@@ -479,20 +518,46 @@ public class DnsForwarder {
                     "cloudflare.com"
                 };
 
-                // Pre-warm BOTH Type A (IPv4) and Type AAAA (IPv6)
-                int[] qtypes = new int[] { 1, 28 };
-                for (String domain : hotDomains) {
-                    for (int qtype : qtypes) {
-                        try {
-                            String key = domain + "#" + qtype;
-                            if (!cache.containsKey(key)) {
-                                byte[] queryPacket = buildSyntheticDnsQuery(domain, qtype);
-                                byte[] resp = forwardUpstream(queryPacket, 0x55AA);
-                                if (resp != null && resp.length >= 12 && (resp[3] & 0x0F) == 0) {
-                                    putCache(key, resp);
+                DatagramSocket prewarmSocket = null;
+                try {
+                    prewarmSocket = new DatagramSocket();
+                    vpnService.protect(prewarmSocket);
+                    prewarmSocket.setSoTimeout(300);
+                    byte[] recvBuf = new byte[4096];
+                    DatagramPacket recvPack = new DatagramPacket(recvBuf, recvBuf.length);
+
+                    int txId = 0x7000;
+                    int[] qtypes = new int[] { 1, 28 };
+                    for (String domain : hotDomains) {
+                        for (int qtype : qtypes) {
+                            try {
+                                String key = domain + "#" + qtype;
+                                if (!cache.containsKey(key)) {
+                                    txId = (txId + 1) & 0xFFFF;
+                                    byte[] queryPacket = buildSyntheticDnsQuery(domain, qtype, txId);
+
+                                    // Send to primary upstream (Google 8.8.8.8 or Cloudflare 1.1.1.1)
+                                    InetAddress primary = upstreamServers.isEmpty() ?
+                                        InetAddress.getByName("8.8.8.8") : upstreamServers.get(0);
+                                    DatagramPacket sendPack = new DatagramPacket(queryPacket, queryPacket.length, primary, 53);
+                                    prewarmSocket.send(sendPack);
+
+                                    prewarmSocket.receive(recvPack);
+                                    int respLen = recvPack.getLength();
+                                    if (respLen >= 12) {
+                                        int respTxId = ((recvBuf[0] & 0xFF) << 8) | (recvBuf[1] & 0xFF);
+                                        if (respTxId == txId && (recvBuf[3] & 0x0F) == 0) {
+                                            putCache(key, Arrays.copyOf(recvBuf, respLen));
+                                        }
+                                    }
                                 }
-                            }
-                        } catch (Throwable ignored) {}
+                            } catch (Throwable ignored) {}
+                        }
+                    }
+                } catch (Throwable ignored) {
+                } finally {
+                    if (prewarmSocket != null) {
+                        try { prewarmSocket.close(); } catch (Exception ignored) {}
                     }
                 }
                 Log.i(TAG, "Autonomous pre-warming complete. Active RAM records: " + cache.size());
@@ -500,14 +565,14 @@ public class DnsForwarder {
         });
     }
 
-    private static byte[] buildSyntheticDnsQuery(String domain, int qtype) {
+    private static byte[] buildSyntheticDnsQuery(String domain, int qtype, int txId) {
         String[] labels = domain.split("\\.");
         int nameLen = 1;
         for (String l : labels) nameLen += 1 + l.length();
 
         byte[] packet = new byte[12 + nameLen + 4];
-        // TxID = 0x55AA
-        packet[0] = 0x55; packet[1] = (byte) 0xAA;
+        packet[0] = (byte) ((txId >> 8) & 0xFF);
+        packet[1] = (byte) (txId & 0xFF);
         // Flags: Standard query, RD=1
         packet[2] = 0x01; packet[3] = 0x00;
         // QDCOUNT = 1
