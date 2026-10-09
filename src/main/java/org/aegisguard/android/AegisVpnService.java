@@ -229,9 +229,9 @@ public class AegisVpnService extends VpnService implements Runnable {
         shouldStop.set(false);
         if (dnsWorkerPool == null || dnsWorkerPool.isShutdown()) {
             ThreadPoolExecutor executor = new ThreadPoolExecutor(
-                16, 64, 30L, TimeUnit.SECONDS,
-                new LinkedBlockingQueue<Runnable>(256),
-                new ThreadPoolExecutor.DiscardOldestPolicy()
+                32, 128, 60L, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<Runnable>(2048),
+                new ThreadPoolExecutor.CallerRunsPolicy()
             );
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD) {
                 executor.allowCoreThreadTimeOut(true);

@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -45,7 +46,7 @@ public class DnsForwarder {
     private static final String TAG = "DnsForwarder";
     private static final int SOCKET_TIMEOUT_MS = 600;
     private static final int RETRY_INTERVAL_MS = 100;
-    private static final long FRESH_TTL_MS = 300_000L; // 5 minutes fresh
+    private static final long FRESH_TTL_MS = 600_000L; // 10 minutes fresh (eliminates redundant background traffic)
     private static final long STALE_USABLE_MS = 24 * 60 * 60 * 1000L; // 24 hours stale-while-revalidate
     private static final int MAX_CACHE_ENTRIES = 8192;
     private static final int MAX_POOL_SIZE = 16;
@@ -83,6 +84,7 @@ public class DnsForwarder {
 
     private static volatile DnsForwarder sInstance;
     private static final ExecutorService sAsyncExecutor = Executors.newFixedThreadPool(6);
+    private final Set<String> inFlightRefreshes = ConcurrentHashMap.newKeySet();
 
     public static void clearCacheGlobal() {
         if (sInstance != null) {
@@ -116,7 +118,6 @@ public class DnsForwarder {
     private DatagramSocket obtainSocket() {
         DatagramSocket socket = socketPool.poll();
         if (socket != null && !socket.isClosed()) {
-            drainSocket(socket);
             return socket;
         }
         try {
@@ -126,17 +127,6 @@ public class DnsForwarder {
         } catch (Exception e) {
             return null;
         }
-    }
-
-    private static void drainSocket(DatagramSocket socket) {
-        try {
-            socket.setSoTimeout(1);
-            byte[] discard = new byte[1024];
-            DatagramPacket p = new DatagramPacket(discard, discard.length);
-            while (true) {
-                socket.receive(p);
-            }
-        } catch (Exception ignored) {}
     }
 
     private void releaseSocket(DatagramSocket socket) {
@@ -282,17 +272,23 @@ public class DnsForwarder {
                 System.arraycopy(packet, query.dnsOffset, queryPayloadCopy, 0, query.dnsLength);
                 final int originalTxId = query.txId;
 
-                sAsyncExecutor.execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            byte[] fresh = forwardUpstream(queryPayloadCopy, originalTxId);
-                            if (fresh != null && fresh.length >= 12 && (fresh[3] & 0x0F) == 0) {
-                                putCache(cacheKey, fresh);
+                // De-duplicate background refreshes to eliminate network congestion and packet floods
+                if (inFlightRefreshes.add(cacheKey)) {
+                    sAsyncExecutor.execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                byte[] fresh = forwardUpstream(queryPayloadCopy, originalTxId);
+                                if (fresh != null && fresh.length >= 12 && (fresh[3] & 0x0F) == 0) {
+                                    putCache(cacheKey, fresh);
+                                }
+                            } catch (Throwable ignored) {
+                            } finally {
+                                inFlightRefreshes.remove(cacheKey);
                             }
-                        } catch (Throwable ignored) {}
-                    }
-                });
+                        }
+                    });
+                }
 
                 return response;
             } else {
@@ -322,16 +318,16 @@ public class DnsForwarder {
 
     /**
      * Executes clean Dual-Stack Anycast racing using pooled protected sockets.
-     * Includes fast UDP re-transmission at 100ms to defeat packet loss.
+     * Races top 3 resolvers (Google + Cloudflare + local ISP) to prevent UDP bufferbloat.
      */
     private byte[] forwardUpstream(byte[] queryPayload, int expectedTxId) {
         DatagramSocket socket = obtainSocket();
         if (socket == null) return null;
 
         try {
-            // First wave: dispatch query simultaneously to top 8 Anycast & local resolvers
+            // First wave: dispatch query simultaneously to top 3 Anycast & local resolvers
             int numServers = upstreamServers.size();
-            int sendCount = Math.min(numServers, 8);
+            int sendCount = Math.min(numServers, 3);
             for (int i = 0; i < sendCount; i++) {
                 InetAddress server = upstreamServers.get(i);
                 if (server != null) {
@@ -365,7 +361,7 @@ public class DnsForwarder {
                 // Fast re-transmit wave after 100ms if no valid response received
                 if (!retried && (now - startTime) >= RETRY_INTERVAL_MS) {
                     retried = true;
-                    for (int i = 0; i < Math.min(numServers, 8); i++) {
+                    for (int i = 0; i < Math.min(numServers, 3); i++) {
                         InetAddress server = upstreamServers.get(i);
                         if (server != null) {
                             try {

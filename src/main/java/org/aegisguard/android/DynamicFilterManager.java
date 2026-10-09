@@ -53,12 +53,45 @@ public class DynamicFilterManager {
     private static final String CACHE_FILE_NAME = "aegis_dynamic_threat_cache.txt";
     private static final int MAX_DYNAMIC_RULES = 35000; // Optimal memory bounds for low-end hardware
 
-    // Primary and Redundant Global Threat Intelligence Feeds
+    // Curated Global Threat Intelligence Feeds (Strictly validated to avoid false positives and site breakage)
     private static final String[] THREAT_FEED_URLS = new String[] {
-        "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
-        "https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt",
-        "https://small.oisd.nl/"
+        // Peter Lowe's gold standard curated adserver list (Zero false positives, strictly verified ad networks)
+        "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext",
+        // HaGeZi Multi LIGHT DNS Blocklist (Targeted pure ad & tracker servers only, strictly vetted against top 1M)
+        "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/light.txt",
+        // AdGuard mobile adserver rules
+        "https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt"
     };
+
+    private static final Set<String> GLOBAL_PROTECTED_ROOTS = new HashSet<>(java.util.Arrays.asList(
+        "google.com", "youtube.com", "facebook.com", "instagram.com", "whatsapp.com", "whatsapp.net",
+        "twitter.com", "x.com", "reddit.com", "redditstatic.com", "amazon.com", "amazon.in",
+        "flipkart.com", "myntra.com", "ajio.com", "meesho.com", "aliexpress.com", "ebay.com",
+        "apple.com", "icloud.com", "microsoft.com", "github.com", "gitlab.com", "wikipedia.org",
+        "netflix.com", "hotstar.com", "disneyplus.com", "spotify.com", "telegram.org", "t.me",
+        "discord.com", "discord.gg", "zoom.us", "slack.com", "linkedin.com", "pinterest.com",
+        "quora.com", "medium.com", "substack.com", "vimeo.com", "dailymotion.com",
+        "bit.ly", "tinyurl.com", "linktr.ee", "t.co", "cutt.ly", "booking.com", "airbnb.com",
+        "cloudflare.com", "fastly.net", "akamaihd.net", "akamaized.net", "jsdelivr.net", "unpkg.com",
+        "cdnjs.cloudflare.com", "paypal.com", "stripe.com", "paytm.com", "phonepe.com", "razorpay.com",
+        "uber.com", "ola.cabs", "swiggy.com", "zomato.com", "zepto.now", "blinkit.com"
+    ));
+
+    public static boolean isGlobalProtectedRoot(String domain) {
+        if (domain == null) return false;
+        String d = domain.toLowerCase(Locale.US);
+        if (GLOBAL_PROTECTED_ROOTS.contains(d)) return true;
+        for (String root : GLOBAL_PROTECTED_ROOTS) {
+            if (d.equals(root) || d.endsWith("." + root)) {
+                // If it's a known service, only allow blocking if it is an explicit third-party ad tracker
+                if (d.contains("adservice.google") || d.contains("doubleclick.net") || d.contains("pagead2")) {
+                    return false;
+                }
+                return true;
+            }
+        }
+        return false;
+    }
 
     private static final ExecutorService sExecutor = Executors.newSingleThreadExecutor();
     private static final Handler sMainHandler = new Handler(Looper.getMainLooper());
@@ -270,14 +303,16 @@ public class DynamicFilterManager {
 
             while ((line = reader.readLine()) != null && count < MAX_DYNAMIC_RULES) {
                 line = line.trim();
-                if (line.isEmpty() || line.startsWith("#") || line.startsWith("!") || line.startsWith("[") || line.startsWith("@") || line.contains("##") || line.contains("#@#")) {
+                if (line.isEmpty() || line.startsWith("#") || line.startsWith("!") ||
+                    line.startsWith("[") || line.startsWith("@") || line.contains("##") ||
+                    line.contains("#@#") || line.contains("$third-party") || line.contains("$sitekey")) {
                     continue;
                 }
 
                 String domain = extractDomain(line);
                 if (domain != null && isValidDomain(domain)) {
-                    // Whitelist safety guard: NEVER allow dynamic rules to sinkhole essential services
-                    if (!FilterEngine.isEssentialService(domain)) {
+                    // Whitelist safety guard: NEVER allow dynamic rules to sinkhole essential services or global protected websites
+                    if (!FilterEngine.isEssentialService(domain) && !isGlobalProtectedRoot(domain)) {
                         domains.add(domain);
                         count++;
                     }
@@ -362,6 +397,8 @@ public class DynamicFilterManager {
 
     /**
      * Reads locally cached rules into FilterEngine.DYNAMIC_DOMAINS.
+     * Sanitizes rules against essential services and protected roots,
+     * immediately cleansing any false positives saved on disk.
      */
     private static int loadCachedRules(Context context) {
         try {
@@ -378,7 +415,7 @@ public class DynamicFilterManager {
             Set<String> cached = new HashSet<>(4096);
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
-                if (!line.isEmpty() && !FilterEngine.isEssentialService(line)) {
+                if (!line.isEmpty() && !FilterEngine.isEssentialService(line) && !isGlobalProtectedRoot(line)) {
                     cached.add(line);
                 }
             }
@@ -387,7 +424,8 @@ public class DynamicFilterManager {
 
             FilterEngine.DYNAMIC_DOMAINS.clear();
             FilterEngine.DYNAMIC_DOMAINS.addAll(cached);
-            Log.i(TAG, "Loaded " + cached.size() + " dynamic threat rules from local cache");
+            saveToLocalStorage(context, cached);
+            Log.i(TAG, "Loaded and sanitized " + cached.size() + " dynamic threat rules from local cache");
             return cached.size();
         } catch (Throwable t) {
             Log.w(TAG, "Could not load local cache: " + t.getMessage());

@@ -273,7 +273,9 @@ public class AegisGuardStressTest {
             "ggpht.com", "googleapis.com", "gstatic.com", "googleusercontent.com", "gvt1.com", "gvt2.com", "youtu.be", "1e100.net",
             "hotstar.com", "hotstarcdn.com", "starott.com", "netflix.com",
             "npci.org.in", "paytm.com", "phonepe.com", "razorpay.com",
-            "cloudflare.com", "fastly.net", "akamaized.net", "openai.com", "chatgpt.com"
+            "cloudflare.com", "fastly.net", "akamaized.net", "openai.com", "chatgpt.com",
+            "cdnjs.cloudflare.com", "jsdelivr.net", "unpkg.com", "bit.ly", "wikipedia.org",
+            "bbc.com", "vimeo.com", "booking.com", "coursera.org", "docker.com"
         };
 
         // Ad networks that MUST ALWAYS be blocked
@@ -283,6 +285,7 @@ public class AegisGuardStressTest {
             "inmobi.com", "chartboost.com", "mintegral.com", "tapjoy.com", "pangle.io",
             "taboola.com", "outbrain.com", "criteo.com", "revcontent.com", "mgid.com",
             "popads.net", "popcash.net", "propellerads.com", "adsterra.com",
+            "highcpmgate.com", "monetag.com", "admaven.com", "ezoic.net", "mediavine.com", "snigelweb.com", "freestar.io",
             "appsflyer.com", "branch.io", "kochava.com", "adjust.com", "mixpanel.com"
         };
 

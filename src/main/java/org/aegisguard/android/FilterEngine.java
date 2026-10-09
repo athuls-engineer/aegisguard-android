@@ -57,12 +57,23 @@ public class FilterEngine {
         blockOem = sp.getBoolean("block_oem", true);
     }
 
-    private static final Set<String> AD_DOMAINS = new HashSet<>(256);
-    private static final Set<String> POPUP_DOMAINS = new HashSet<>(128);
+    private static final Set<String> AD_DOMAINS = new HashSet<>(512);
+    private static final Set<String> POPUP_DOMAINS = new HashSet<>(256);
     private static final Set<String> TRACKER_DOMAINS = new HashSet<>(256);
     private static final Set<String> FINGERPRINT_DOMAINS = new HashSet<>(128);
     private static final Set<String> OEM_DOMAINS = new HashSet<>(128);
     public static final Set<String> DYNAMIC_DOMAINS = Collections.synchronizedSet(new HashSet<String>(4096));
+
+    // High-performance heuristic ad subdomain labels (O(1) instant match)
+    private static final Set<String> AD_SUBDOMAIN_LABELS = new HashSet<>(Arrays.asList(
+        "ad", "ads", "adserver", "adservers", "adservice", "adservices",
+        "adsystem", "adsystems", "admanager", "adcontent", "adcdn", "addelivery",
+        "adnetwork", "adtrack", "adtracker", "adclient", "adtag", "adx", "appads",
+        "banner", "banners", "bannerad", "bannerads", "inappads",
+        "popup", "popups", "popunder", "popunders",
+        "interstitial", "interstitials", "displayads", "nativeads",
+        "pagead", "videoads", "servedby"
+    ));
 
     private static final Set<String> SHARED_HOSTING_SUFFIXES = new HashSet<>(Arrays.asList(
         "github.io", "pages.dev", "workers.dev", "web.app", "firebaseapp.com",
@@ -136,6 +147,19 @@ public class FilterEngine {
             "kidoz.net", "sdk.kidoz.net", "adgeneration.jp", "yieldone.com", "microad.net", "cpmstar.com",
             "smartyads.com", "epom.com", "propeller-tracking.com", "adxprts.com", "yandexads.com",
             "adfox.yandex.ru", "bebi.com", "adzerk.net", "kevel.co", "mtgglobals.com",
+            // Web Banners, Header-Bidding Exchanges & Publisher Monetization
+            "ezoic.net", "ezoic.com", "go.ezoic.net", "ezodn.com", "g.ezoic.net",
+            "snigelweb.com", "adengine.snigelweb.com",
+            "freestar.io", "a.pub.network", "pub.network",
+            "mediavine.com", "scripts.mediavine.com",
+            "adthrive.com", "ads.adthrive.com",
+            "adpushup.com", "setupad.com", "prebid.setupad.com",
+            "optidigital.com", "monetizemore.com", "pubguru.com",
+            "adstyle.com", "dianomi.com",
+            "primis.tech", "live.primis.tech", "aniview.com", "govaniview.com",
+            "playwire.com", "cdn.intergi.com", "intergi.com",
+            "nitropay.com", "s.nitropay.com", "buysellads.net", "srv.buysellads.com",
+            "servedby-buysellads.com", "adx1.com", "adexc.net", "directrev.com",
             // Video Streaming In-Built Ad Delivery & Client SDKs
             "ads.twitch.tv", "ad.twitch.tv",
             "ads.spotify.com", "ads-fa.spotify.com", "adstudio.spotify.com",
@@ -148,14 +172,23 @@ public class FilterEngine {
         };
         Collections.addAll(AD_DOMAINS, ads);
 
-        // 2. Intrusive Popups, Popunders & Malicious Redirect Gateways
+        // 2. Intrusive Popups, Popunders, Full-Screen Interstitial Gates & Malicious Redirects
         String[] popups = new String[] {
             "popads.net", "popcash.net", "propellerads.com", "adsterra.com", "exoclick.com",
-            "trafficjunky.net", "juicyads.com", "hilltopads.com", "clickadu.com", "richads.com",
-            "pushground.com", "evadav.com", "monetag.com", "adcash.com", "admaven.com",
+            "trafficjunky.net", "trafficjunky.com", "juicyads.com", "hilltopads.com", "hilltopads.net",
+            "clickadu.com", "richads.com", "pushground.com", "evadav.com", "monetag.com", "adcash.com", "admaven.com",
             "clicksor.com", "bidvertiser.com", "chitika.net", "infolinks.com", "trafficfactory.biz",
             "realsrv.com", "tsyndicate.com", "syndication.exoclick.com", "adxadserv.com",
-            "popcash.com", "popmonetizer.com", "trafficshop.com", "zeroparallel.com"
+            "popcash.com", "popmonetizer.com", "trafficshop.com", "zeroparallel.com",
+            // Full-Screen Interstitial Gates, Anti-Adblock Redirects & Popunders
+            "highcpmgate.com", "highperformancegate.com", "effectivecpmgate.com", "topcpmgate.com",
+            "profitablecpmgate.com", "creativecpmgate.com",
+            "al5sm.com", "alwingulla.com", "nap5k.com", "whoshout.biz", "deloplen.com", "out-take.biz",
+            "pt50k.com", "st50k.com", "whomeet.biz", "in-page-push.com", "trk.admaven.com",
+            "clksite.com", "trafficstars.com", "adtilt.com", "adtng.com", "adxpansion.com",
+            "ero-advertising.com", "clarium.io", "clickadilla.com", "da-ads.com",
+            "onclickalgo.com", "onclickperformance.com", "pushengage.com", "pushassist.com",
+            "subscribers.com", "webpushr.com"
         };
         Collections.addAll(POPUP_DOMAINS, popups);
 
@@ -163,7 +196,7 @@ public class FilterEngine {
         String[] trackers = new String[] {
             "appsflyer.com", "app.appsflyer.com", "gcdsdk.appsflyer.com", "t.appsflyer.com", "appsflyersdk.com",
             "adjust.com", "app.adjust.com", "view.adjust.com",
-            "api2.branch.io",
+            "branch.io", "api.branch.io", "api2.branch.io",
             "kochava.com", "control.kochava.com", "api.kochava.com",
             "singular.net", "c.singular.net", "singular-metrics.com",
             "tenjin.io", "tenjin.com", "airbridge.io",
@@ -372,6 +405,139 @@ public class FilterEngine {
             domain.equals("azureedge.net") || domain.endsWith(".azureedge.net") ||
             domain.equals("digicert.com") || domain.endsWith(".digicert.com") ||
             domain.equals("letsencrypt.org") || domain.endsWith(".letsencrypt.org") ||
+            // Global Web Libraries, CDNs & Web Assets (Guarantee all web CSS, JS & Fonts load)
+            domain.equals("cdnjs.cloudflare.com") || domain.endsWith(".cdnjs.cloudflare.com") ||
+            domain.equals("cdnjs.com") || domain.endsWith(".cdnjs.com") ||
+            domain.equals("jsdelivr.net") || domain.endsWith(".jsdelivr.net") ||
+            domain.equals("jsdelivr.com") || domain.endsWith(".jsdelivr.com") ||
+            domain.equals("unpkg.com") || domain.endsWith(".unpkg.com") ||
+            domain.equals("statically.io") || domain.endsWith(".statically.io") ||
+            domain.equals("bootstrapcdn.com") || domain.endsWith(".bootstrapcdn.com") ||
+            domain.equals("fontawesome.com") || domain.endsWith(".fontawesome.com") ||
+            domain.equals("typekit.net") || domain.endsWith(".typekit.net") ||
+            domain.equals("fonts.net") || domain.endsWith(".fonts.net") ||
+            domain.equals("adobe.com") || domain.endsWith(".adobe.com") ||
+            domain.equals("adobe.io") || domain.endsWith(".adobe.io") ||
+            domain.equals("creativecloud.com") || domain.endsWith(".creativecloud.com") ||
+            domain.equals("gravatar.com") || domain.endsWith(".gravatar.com") ||
+            domain.equals("wp.com") || domain.endsWith(".wp.com") ||
+            domain.equals("wordpress.org") || domain.endsWith(".wordpress.org") ||
+            domain.equals("wordpress.com") || domain.endsWith(".wordpress.com") ||
+            domain.equals("w.org") || domain.endsWith(".w.org") ||
+            domain.equals("s.w.org") || domain.endsWith(".s.w.org") ||
+            domain.equals("jquery.com") || domain.endsWith(".jquery.com") ||
+            domain.equals("polyfill.io") || domain.endsWith(".polyfill.io") ||
+            domain.equals("staticflickr.com") || domain.endsWith(".staticflickr.com") ||
+            domain.equals("imgur.com") || domain.endsWith(".imgur.com") ||
+            domain.equals("tenor.com") || domain.endsWith(".tenor.com") ||
+            domain.equals("giphy.com") || domain.endsWith(".giphy.com") ||
+            // Web Browsers & Safe Updates
+            domain.equals("mozilla.org") || domain.endsWith(".mozilla.org") ||
+            domain.equals("mozilla.net") || domain.endsWith(".mozilla.net") ||
+            domain.equals("firefox.com") || domain.endsWith(".firefox.com") ||
+            domain.equals("chrome.com") || domain.endsWith(".chrome.com") ||
+            domain.equals("chromium.org") || domain.endsWith(".chromium.org") ||
+            domain.equals("opera.com") || domain.endsWith(".opera.com") ||
+            domain.equals("brave.software") || domain.endsWith(".brave.software") ||
+            domain.equals("vivaldi.com") || domain.endsWith(".vivaldi.com") ||
+            // Global News & Publishing Portals
+            domain.equals("wikipedia.org") || domain.endsWith(".wikipedia.org") ||
+            domain.equals("wikimedia.org") || domain.endsWith(".wikimedia.org") ||
+            domain.equals("wikidata.org") || domain.endsWith(".wikidata.org") ||
+            domain.equals("bbc.com") || domain.endsWith(".bbc.com") ||
+            domain.equals("bbc.co.uk") || domain.endsWith(".bbc.co.uk") ||
+            domain.equals("reuters.com") || domain.endsWith(".reuters.com") ||
+            domain.equals("cnn.com") || domain.endsWith(".cnn.com") ||
+            domain.equals("nytimes.com") || domain.endsWith(".nytimes.com") ||
+            domain.equals("theguardian.com") || domain.endsWith(".theguardian.com") ||
+            domain.equals("bloomberg.com") || domain.endsWith(".bloomberg.com") ||
+            domain.equals("forbes.com") || domain.endsWith(".forbes.com") ||
+            domain.equals("medium.com") || domain.endsWith(".medium.com") ||
+            domain.equals("substack.com") || domain.endsWith(".substack.com") ||
+            domain.equals("quora.com") || domain.endsWith(".quora.com") ||
+            domain.equals("pinterest.com") || domain.endsWith(".pinterest.com") ||
+            domain.equals("pinimg.com") || domain.endsWith(".pinimg.com") ||
+            domain.equals("tumblr.com") || domain.endsWith(".tumblr.com") ||
+            domain.equals("linkedin.com") || domain.endsWith(".linkedin.com") ||
+            domain.equals("licdn.com") || domain.endsWith(".licdn.com") ||
+            domain.equals("thehindu.com") || domain.endsWith(".thehindu.com") ||
+            domain.equals("ndtv.com") || domain.endsWith(".ndtv.com") ||
+            domain.equals("indiatimes.com") || domain.endsWith(".indiatimes.com") ||
+            domain.equals("hindustantimes.com") || domain.endsWith(".hindustantimes.com") ||
+            domain.equals("indianexpress.com") || domain.endsWith(".indianexpress.com") ||
+            domain.equals("livemint.com") || domain.endsWith(".livemint.com") ||
+            domain.equals("moneycontrol.com") || domain.endsWith(".moneycontrol.com") ||
+            // Global Video & Audio Streaming
+            domain.equals("vimeo.com") || domain.endsWith(".vimeo.com") ||
+            domain.equals("vimeocdn.com") || domain.endsWith(".vimeocdn.com") ||
+            domain.equals("dailymotion.com") || domain.endsWith(".dailymotion.com") ||
+            domain.equals("dmcdn.net") || domain.endsWith(".dmcdn.net") ||
+            domain.equals("soundcloud.com") || domain.endsWith(".soundcloud.com") ||
+            domain.equals("sndcdn.com") || domain.endsWith(".sndcdn.com") ||
+            domain.equals("deezer.com") || domain.endsWith(".deezer.com") ||
+            domain.equals("tidal.com") || domain.endsWith(".tidal.com") ||
+            domain.equals("primevideo.com") || domain.endsWith(".primevideo.com") ||
+            domain.equals("hulu.com") || domain.endsWith(".hulu.com") ||
+            domain.equals("max.com") || domain.endsWith(".max.com") ||
+            domain.equals("hbomax.com") || domain.endsWith(".hbomax.com") ||
+            domain.equals("crunchyroll.com") || domain.endsWith(".crunchyroll.com") ||
+            // Essential URL Shorteners & Shared Links (Prevents Broken Outbound Clicks)
+            domain.equals("bit.ly") || domain.endsWith(".bit.ly") ||
+            domain.equals("tinyurl.com") || domain.endsWith(".tinyurl.com") ||
+            domain.equals("t.co") || domain.endsWith(".t.co") ||
+            domain.equals("linktr.ee") || domain.endsWith(".linktr.ee") ||
+            domain.equals("cutt.ly") || domain.endsWith(".cutt.ly") ||
+            domain.equals("is.gd") || domain.endsWith(".is.gd") ||
+            domain.equals("ow.ly") || domain.endsWith(".ow.ly") ||
+            domain.equals("buff.ly") || domain.endsWith(".buff.ly") ||
+            domain.equals("rebrand.ly") || domain.endsWith(".rebrand.ly") ||
+            domain.equals("shorturl.at") || domain.endsWith(".shorturl.at") ||
+            // Search Engines, Knowledge & Verification
+            domain.equals("startpage.com") || domain.endsWith(".startpage.com") ||
+            domain.equals("ecosia.org") || domain.endsWith(".ecosia.org") ||
+            domain.equals("qwant.com") || domain.endsWith(".qwant.com") ||
+            domain.equals("searx.me") || domain.endsWith(".searx.me") ||
+            domain.equals("baidu.com") || domain.endsWith(".baidu.com") ||
+            domain.equals("yandex.com") || domain.endsWith(".yandex.com") ||
+            domain.equals("wolframalpha.com") || domain.endsWith(".wolframalpha.com") ||
+            domain.equals("archive.org") || domain.endsWith(".archive.org") ||
+            domain.equals("imdb.com") || domain.endsWith(".imdb.com") ||
+            domain.equals("rottentomatoes.com") || domain.endsWith(".rottentomatoes.com") ||
+            // Travel, Logistics & Local Booking
+            domain.equals("booking.com") || domain.endsWith(".booking.com") ||
+            domain.equals("agoda.com") || domain.endsWith(".agoda.com") ||
+            domain.equals("airbnb.com") || domain.endsWith(".airbnb.com") ||
+            domain.equals("expedia.com") || domain.endsWith(".expedia.com") ||
+            domain.equals("makemytrip.com") || domain.endsWith(".makemytrip.com") ||
+            domain.equals("irctc.co.in") || domain.endsWith(".irctc.co.in") ||
+            domain.equals("goibibo.com") || domain.endsWith(".goibibo.com") ||
+            domain.equals("cleartrip.com") || domain.endsWith(".cleartrip.com") ||
+            domain.equals("tripadvisor.com") || domain.endsWith(".tripadvisor.com") ||
+            domain.equals("uber.com") || domain.endsWith(".uber.com") ||
+            domain.equals("ola.cabs") || domain.endsWith(".ola.cabs") ||
+            domain.equals("rapido.bike") || domain.endsWith(".rapido.bike") ||
+            // International E-Commerce
+            domain.equals("shopee.com") || domain.endsWith(".shopee.com") ||
+            domain.equals("lazada.com") || domain.endsWith(".lazada.com") ||
+            domain.equals("tokopedia.com") || domain.endsWith(".tokopedia.com") ||
+            domain.equals("taobao.com") || domain.endsWith(".taobao.com") ||
+            domain.equals("tmall.com") || domain.endsWith(".tmall.com") ||
+            domain.equals("jd.com") || domain.endsWith(".jd.com") ||
+            // Cloud, Serverless & Web Hosting Platforms
+            domain.equals("docker.com") || domain.endsWith(".docker.com") ||
+            domain.equals("npmjs.com") || domain.endsWith(".npmjs.com") ||
+            domain.equals("pypi.org") || domain.endsWith(".pypi.org") ||
+            domain.equals("render.com") || domain.endsWith(".render.com") ||
+            domain.equals("fly.io") || domain.endsWith(".fly.io") ||
+            domain.equals("supabase.co") || domain.endsWith(".supabase.co") ||
+            domain.equals("supabase.com") || domain.endsWith(".supabase.com") ||
+            domain.equals("firebase.google.com") || domain.endsWith(".firebase.google.com") ||
+            domain.equals("firebaseio.com") || domain.endsWith(".firebaseio.com") ||
+            // Education & MOOCs
+            domain.equals("coursera.org") || domain.endsWith(".coursera.org") ||
+            domain.equals("edx.org") || domain.endsWith(".edx.org") ||
+            domain.equals("udemy.com") || domain.endsWith(".udemy.com") ||
+            domain.equals("khanacademy.org") || domain.endsWith(".khanacademy.org") ||
             // Global Search Engines & Browser Infrastructure
             domain.equals("bing.com") || domain.endsWith(".bing.com") ||
             domain.equals("yahoo.com") || domain.endsWith(".yahoo.com") ||
@@ -423,7 +589,11 @@ public class FilterEngine {
                 return new MatchResult(Decision.BLOCK_OEM, "OEM System Telemetry", "Aegis_OEM_Telemetry:" + current);
             }
             if (DYNAMIC_DOMAINS.contains(current)) {
-                return new MatchResult(Decision.BLOCK_AD, "Global Threat Feed (Auto-Updated)", "Aegis_Dynamic_Cloud:" + current);
+                // Safeguard: Only block if exact domain match OR if current is a specific subdomain (contains at least 2 dots)
+                // This prevents dynamic rules from ever breaking an entire apex website!
+                if (domain.equals(current) || current.indexOf('.') != current.lastIndexOf('.')) {
+                    return new MatchResult(Decision.BLOCK_AD, "Global Threat Feed (Auto-Updated)", "Aegis_Dynamic_Cloud:" + current);
+                }
             }
 
             int nextDot = current.indexOf('.');
@@ -431,24 +601,29 @@ public class FilterEngine {
             current = current.substring(nextDot + 1);
         }
 
-        // 3. Heuristic detection on standard ad/popup subdomains (strictly ad-serving, not logistics or analytics)
-        if (blockAds && (domain.startsWith("ad.") || domain.startsWith("ads.") || 
-            domain.startsWith("adservice.") || domain.startsWith("adserver.") ||
-            domain.startsWith("adservers.") || domain.startsWith("adsystem.") ||
-            domain.startsWith("adsystems.") || domain.startsWith("ads-api.") ||
-            domain.startsWith("ad-delivery.") || domain.startsWith("admob.") ||
-            domain.startsWith("adcontent.") || domain.startsWith("adcdn.") ||
-            domain.startsWith("ads-cdn.") || domain.startsWith("admanager.") ||
-            domain.startsWith("mobileads.") || domain.startsWith("videoads.") ||
-            domain.startsWith("interstitial.") || domain.startsWith("rewarded.") ||
-            domain.startsWith("adtrack.") || domain.startsWith("adtracker.") ||
-            domain.startsWith("adx.") || domain.startsWith("appads.") || domain.startsWith("app-ads.") ||
-            domain.startsWith("banner.") || domain.startsWith("banners.") ||
-            domain.startsWith("bannerads.") || domain.startsWith("banner-ads.") ||
-            domain.startsWith("inappads.") || domain.startsWith("static-ads.") || domain.startsWith("mads.") ||
-            domain.startsWith("nativeads.") || domain.startsWith("displayads.") ||
-            domain.startsWith("popup.") || domain.startsWith("popunder."))) {
-            return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
+        // 3. Fast Heuristic detection on standard ad, banner, popup & interstitial subdomains
+        if (blockAds) {
+            int firstDot = domain.indexOf('.');
+            if (firstDot > 0) {
+                String firstLabel = domain.substring(0, firstDot);
+                if (AD_SUBDOMAIN_LABELS.contains(firstLabel)) {
+                    return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
+                }
+            }
+            if (domain.startsWith("ad-") || domain.startsWith("banner-") || domain.startsWith("pop-") ||
+                domain.startsWith("fullscreen-") || domain.startsWith("floating-") || domain.startsWith("sticky-") ||
+                domain.startsWith("servedby.") || domain.startsWith("adpushup.") || domain.startsWith("adserver.") ||
+                domain.startsWith("adservers.") || domain.startsWith("adservice.") || domain.startsWith("adsystem.") ||
+                domain.startsWith("adsystems.") || domain.startsWith("ads-api.") || domain.startsWith("ad-delivery.") ||
+                domain.startsWith("adcontent.") || domain.startsWith("adcdn.") || domain.startsWith("ads-cdn.") ||
+                domain.startsWith("admanager.") || domain.startsWith("mobileads.") || domain.startsWith("videoads.") ||
+                domain.startsWith("interstitial.") || domain.startsWith("rewarded.") || domain.startsWith("adtrack.") ||
+                domain.startsWith("adtracker.") || domain.startsWith("adx.") || domain.startsWith("appads.") ||
+                domain.startsWith("app-ads.") || domain.startsWith("bannerads.") || domain.startsWith("inappads.") ||
+                domain.startsWith("static-ads.") || domain.startsWith("nativeads.") || domain.startsWith("displayads.") ||
+                domain.startsWith("popup.") || domain.startsWith("popunder.")) {
+                return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
+            }
         }
 
         return new MatchResult(Decision.CLEAN, "Clean Traffic", "Whitelisted");
