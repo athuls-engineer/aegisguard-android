@@ -44,22 +44,12 @@ import java.util.concurrent.Executors;
 public class DnsForwarder {
 
     private static final String TAG = "DnsForwarder";
-    private static final int SOCKET_TIMEOUT_MS = 600;
-    private static final int RETRY_INTERVAL_MS = 100;
+    private static final int SOCKET_TIMEOUT_MS = 2500;
+    private static final int RETRY_INTERVAL_MS = 120;
+    private static final int SECOND_RETRY_INTERVAL_MS = 350;
     private static final long FRESH_TTL_MS = 600_000L; // 10 minutes fresh (eliminates redundant background traffic)
     private static final long STALE_USABLE_MS = 24 * 60 * 60 * 1000L; // 24 hours stale-while-revalidate
     private static final int MAX_CACHE_ENTRIES = 8192;
-    private static final int MAX_POOL_SIZE = 16;
-
-    private static boolean isTier1Resolver(InetAddress addr) {
-        if (addr == null) return false;
-        String host = addr.getHostAddress();
-        if (host == null) return false;
-        return host.equals("8.8.8.8") || host.equals("8.8.4.4") ||
-               host.equals("1.1.1.1") || host.equals("1.0.0.1") ||
-               host.equals("9.9.9.9") || host.equals("149.112.112.112") ||
-               host.startsWith("2001:4860:") || host.startsWith("2606:4700:");
-    }
 
     private static class CacheEntry {
         final byte[] rawPayload;
@@ -101,7 +91,6 @@ public class DnsForwarder {
     private final VpnService vpnService;
     private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>(MAX_CACHE_ENTRIES);
     private final CopyOnWriteArrayList<InetAddress> upstreamServers = new CopyOnWriteArrayList<>();
-    private final ConcurrentLinkedQueue<DatagramSocket> socketPool = new ConcurrentLinkedQueue<>();
     private volatile Network underlyingNetwork = null;
     private volatile String selectedProvider = "racing";
 
@@ -115,13 +104,9 @@ public class DnsForwarder {
         prewarmHotDomains();
     }
 
-    private DatagramSocket obtainSocket() {
-        DatagramSocket socket = socketPool.poll();
-        if (socket != null && !socket.isClosed()) {
-            return socket;
-        }
+    public DatagramSocket createProtectedSocket() {
         try {
-            socket = new DatagramSocket();
+            DatagramSocket socket = new DatagramSocket();
             vpnService.protect(socket);
             return socket;
         } catch (Exception e) {
@@ -129,14 +114,8 @@ public class DnsForwarder {
         }
     }
 
-    private void releaseSocket(DatagramSocket socket) {
-        if (socket != null && !socket.isClosed()) {
-            if (socketPool.size() < MAX_POOL_SIZE) {
-                socketPool.offer(socket);
-            } else {
-                try { socket.close(); } catch (Exception ignored) {}
-            }
-        }
+    public void drainSocketPool() {
+        // Dedicated ephemeral sockets are managed per-query; zero risk of stale socket reuse
     }
 
     public void setUpstreamProvider(String provider) {
@@ -202,13 +181,8 @@ public class DnsForwarder {
                     newServers.add(InetAddress.getByName("8.8.8.8"));
                 }
             } else {
-                // "racing" - Dual-Stack Anycast Race:
-                // 1. Google Public DNS (IPv4) - Full EDNS Client Subnet (ECS) support guarantees optimal regional CDN edge
-                newServers.add(InetAddress.getByName("8.8.8.8"));
-                // 2. Cloudflare Anycast (IPv4) - Sub-5ms ultra-resilient fallback
-                newServers.add(InetAddress.getByName("1.1.1.1"));
-
-                // 3. Physical ISP / Local Router Gateway DNS (IPv4 & IPv6)
+                // "racing" - Dual-Stack Anycast & Local Edge Race:
+                // 1. Physical ISP / Local Router Gateway DNS (IPv4 & IPv6) - Local Edge (1-3ms) & Carrier Bypass
                 ConnectivityManager cm = (ConnectivityManager) vpnService.getSystemService(Context.CONNECTIVITY_SERVICE);
                 if (cm != null) {
                     Network targetNetwork = this.underlyingNetwork;
@@ -234,7 +208,13 @@ public class DnsForwarder {
                     }
                 }
 
-                // 4. Secondary Tier-1 Anycast Upstreams
+                // 2. Google Public DNS (IPv4) - Full EDNS Client Subnet (ECS) support guarantees optimal regional CDN edge
+                newServers.add(InetAddress.getByName("8.8.8.8"));
+                // 3. Cloudflare Anycast (IPv4) - Sub-5ms ultra-resilient fallback
+                newServers.add(InetAddress.getByName("1.1.1.1"));
+                // 4. Quad9 Anycast (IPv4)
+                newServers.add(InetAddress.getByName("9.9.9.9"));
+                // 5. Secondary Tier-1 Anycast Upstreams
                 newServers.add(InetAddress.getByName("8.8.4.4"));
                 newServers.add(InetAddress.getByName("1.0.0.1"));
                 try {
@@ -322,22 +302,29 @@ public class DnsForwarder {
             return rawResponse;
         }
 
-        // 3. Fallback: Synthesize clean SERVFAIL so Android client handles error immediately without a 5-second hang!
+        // 3. Fallback: If cache had an existing entry (even if expired), return it rather than breaking the website!
+        if (cached != null) {
+            byte[] response = Arrays.copyOf(cached.rawPayload, cached.rawPayload.length);
+            response[0] = (byte) ((query.txId >> 8) & 0xFF);
+            response[1] = (byte) (query.txId & 0xFF);
+            return response;
+        }
+
+        // 4. Fallback: Synthesize clean SERVFAIL so Android client handles error immediately without a 5-second hang!
         return createServfailResponse(queryDnsPayload, query.txId);
     }
 
     /**
-     * Executes clean Dual-Stack Anycast racing using pooled protected sockets.
-     * Races top 3 resolvers (Google + Cloudflare + local ISP) to prevent UDP bufferbloat.
+     * Executes line-rate Dual-Stack Anycast & Local Edge racing.
+     * Races up to 5 resolvers (physical ISP, Google, Cloudflare, Quad9) in parallel with dual retry waves.
      */
     private byte[] forwardUpstream(byte[] queryPayload, int expectedTxId) {
-        DatagramSocket socket = obtainSocket();
+        DatagramSocket socket = createProtectedSocket();
         if (socket == null) return null;
 
         try {
-            // First wave: dispatch query simultaneously to top 3 Anycast & local resolvers
             int numServers = upstreamServers.size();
-            int sendCount = Math.min(numServers, 3);
+            int sendCount = Math.min(numServers, 5);
             for (int i = 0; i < sendCount; i++) {
                 InetAddress server = upstreamServers.get(i);
                 if (server != null) {
@@ -353,7 +340,8 @@ public class DnsForwarder {
 
             long startTime = System.currentTimeMillis();
             long deadline = startTime + SOCKET_TIMEOUT_MS;
-            boolean retried = false;
+            boolean firstRetryDone = false;
+            boolean secondRetryDone = false;
             byte[] backupEmptyResponse = null;
             long emptyReceivedTime = 0;
             byte[] backupErrorResponse = null;
@@ -363,15 +351,15 @@ public class DnsForwarder {
                 int remaining = (int) (deadline - now);
                 if (remaining <= 0) break;
 
-                // If local router returned empty NODATA, wait at most 40ms for Tier-1 with real records!
+                // If a resolver returned NODATA, wait at most 40ms for a racing resolver that has real IP records
                 if (backupEmptyResponse != null && (now - emptyReceivedTime) >= 40) {
                     return backupEmptyResponse;
                 }
 
-                // Fast re-transmit wave after 100ms if no valid response received
-                if (!retried && (now - startTime) >= RETRY_INTERVAL_MS) {
-                    retried = true;
-                    for (int i = 0; i < Math.min(numServers, 3); i++) {
+                // Fast re-transmit wave 1 after 120ms
+                if (!firstRetryDone && (now - startTime) >= RETRY_INTERVAL_MS) {
+                    firstRetryDone = true;
+                    for (int i = 0; i < sendCount; i++) {
                         InetAddress server = upstreamServers.get(i);
                         if (server != null) {
                             try {
@@ -382,8 +370,27 @@ public class DnsForwarder {
                     }
                 }
 
-                int waitTime = retried ? remaining : Math.min(remaining, RETRY_INTERVAL_MS);
-                socket.setSoTimeout(Math.max(waitTime, 10));
+                // Fast re-transmit wave 2 after 350ms (for lossy mobile towers)
+                if (!secondRetryDone && (now - startTime) >= SECOND_RETRY_INTERVAL_MS) {
+                    secondRetryDone = true;
+                    for (int i = 0; i < sendCount; i++) {
+                        InetAddress server = upstreamServers.get(i);
+                        if (server != null) {
+                            try {
+                                DatagramPacket retryPacket = new DatagramPacket(queryPayload, queryPayload.length, server, 53);
+                                socket.send(retryPacket);
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                }
+
+                int nextTimeout = remaining;
+                if (!firstRetryDone) {
+                    nextTimeout = Math.min(remaining, Math.max(10, (int) (RETRY_INTERVAL_MS - (now - startTime))));
+                } else if (!secondRetryDone) {
+                    nextTimeout = Math.min(remaining, Math.max(10, (int) (SECOND_RETRY_INTERVAL_MS - (now - startTime))));
+                }
+                socket.setSoTimeout(Math.max(nextTimeout, 10));
 
                 try {
                     socket.receive(recvPacket);
@@ -393,7 +400,6 @@ public class DnsForwarder {
                         if (respTxId == expectedTxId) {
                             int rcode = recvBuffer[3] & 0x0F;
                             int ancount = ((recvBuffer[6] & 0xFF) << 8) | (recvBuffer[7] & 0xFF);
-                            boolean isTier1 = isTier1Resolver(recvPacket.getAddress());
 
                             if (rcode == 0) {
                                 if (ancount > 0) {
@@ -401,12 +407,7 @@ public class DnsForwarder {
                                     return Arrays.copyOf(recvBuffer, respLen);
                                 } else {
                                     // NOERROR with ANCOUNT == 0 (NODATA).
-                                    // If from Tier-1 (Cloudflare/Google/Quad9), this is authoritative confirmation
-                                    // that the domain has no records of this type (e.g. no AAAA record).
-                                    // Return immediately in 5-15ms! Never wait!
-                                    if (isTier1) {
-                                        return Arrays.copyOf(recvBuffer, respLen);
-                                    }
+                                    // Buffer and wait up to 40ms for a racing server with real records.
                                     if (backupEmptyResponse == null) {
                                         backupEmptyResponse = Arrays.copyOf(recvBuffer, respLen);
                                         emptyReceivedTime = System.currentTimeMillis();
@@ -420,12 +421,10 @@ public class DnsForwarder {
                         }
                     }
                 } catch (SocketTimeoutException ste) {
-                    if (!retried) {
-                        continue; // Proceed to retry wave
-                    }
-                    break;
+                    // Loop continues until deadline or retry trigger
                 }
             }
+
             if (backupEmptyResponse != null) {
                 return backupEmptyResponse;
             }
@@ -433,7 +432,7 @@ public class DnsForwarder {
         } catch (Exception e) {
             return null;
         } finally {
-            releaseSocket(socket);
+            try { socket.close(); } catch (Exception ignored) {}
         }
     }
 
@@ -601,13 +600,6 @@ public class DnsForwarder {
         packet[pos++] = 0x01;
 
         return packet;
-    }
-
-    public void drainSocketPool() {
-        DatagramSocket s;
-        while ((s = socketPool.poll()) != null) {
-            try { s.close(); } catch (Exception ignored) {}
-        }
     }
 
     public void clearCache() {

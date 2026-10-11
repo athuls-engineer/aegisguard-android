@@ -401,7 +401,14 @@ public class AegisGuardStressTest {
                         FilterEngine.evaluate("....");
                         FilterEngine.evaluate("a".repeat(250) + ".com");
                         FilterEngine.evaluate("xn--nxasmm1c.com"); // Internationalized domain
-                        FilterEngine.evaluate("normal-clean-site-" + i + ".org");
+                        FilterEngine.MatchResult resClean = FilterEngine.evaluate("normal-clean-site-" + i + ".org");
+                        if (resClean.isBlocked()) throw new IllegalStateException("Normal clean site blocked");
+                        FilterEngine.MatchResult resAdNl = FilterEngine.evaluate("ad.nl");
+                        if (resAdNl.isBlocked()) throw new IllegalStateException("Apex domain ad.nl blocked");
+                        FilterEngine.MatchResult resFloat = FilterEngine.evaluate("floating-ui.com");
+                        if (resFloat.isBlocked()) throw new IllegalStateException("Apex domain floating-ui.com blocked");
+                        FilterEngine.MatchResult resBanner = FilterEngine.evaluate("banner.com");
+                        if (resBanner.isBlocked()) throw new IllegalStateException("Apex domain banner.com blocked");
                     }
                 }
 

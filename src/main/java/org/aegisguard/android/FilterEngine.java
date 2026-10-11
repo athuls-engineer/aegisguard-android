@@ -693,7 +693,27 @@ public class FilterEngine {
             domain.equals("auth0.com") || domain.endsWith(".auth0.com") ||
             domain.equals("recaptcha.net") || domain.endsWith(".recaptcha.net") ||
             domain.equals("hcaptcha.com") || domain.endsWith(".hcaptcha.com") ||
-            domain.equals("challenges.cloudflare.com");
+            domain.equals("challenges.cloudflare.com") ||
+            // Global Web Assets, UI Frameworks & Essential CDNs
+            domain.equals("floating-ui.com") || domain.endsWith(".floating-ui.com") ||
+            domain.equals("b-cdn.net") || domain.endsWith(".b-cdn.net") ||
+            domain.equals("bunnycdn.com") || domain.endsWith(".bunnycdn.com") ||
+            domain.equals("ad.nl") || domain.endsWith(".ad.nl") ||
+            // Global Productivity & Enterprise Communication
+            domain.equals("slack.com") || domain.endsWith(".slack.com") ||
+            domain.equals("zoom.us") || domain.endsWith(".zoom.us") ||
+            domain.equals("notion.so") || domain.endsWith(".notion.so") ||
+            domain.equals("figma.com") || domain.endsWith(".figma.com") ||
+            domain.equals("linear.app") || domain.endsWith(".linear.app") ||
+            // Global Retail & Banking Gateways
+            domain.equals("temu.com") || domain.endsWith(".temu.com") ||
+            domain.equals("shein.com") || domain.endsWith(".shein.com") ||
+            domain.equals("chase.com") || domain.endsWith(".chase.com") ||
+            domain.equals("bankofamerica.com") || domain.endsWith(".bankofamerica.com") ||
+            domain.equals("wellsfargo.com") || domain.endsWith(".wellsfargo.com") ||
+            domain.equals("hdfcbank.com") || domain.endsWith(".hdfcbank.com") ||
+            domain.equals("icicibank.com") || domain.endsWith(".icicibank.com") ||
+            domain.equals("sbi.co.in") || domain.endsWith(".sbi.co.in");
     }
 
     /**
@@ -783,27 +803,34 @@ public class FilterEngine {
         }
 
         // 5. Fast Heuristic detection on standard ad, banner, popup & interstitial subdomains
+        // Strictly requires at least TWO dots (e.g. ads.example.com, NEVER apex ad.nl or banner.com)
         if (blockAds) {
             int firstDot = domain.indexOf('.');
-            if (firstDot > 0) {
-                String firstLabel = domain.substring(0, firstDot);
-                if (AD_SUBDOMAIN_LABELS.contains(firstLabel)) {
-                    return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
+            int lastDot = domain.lastIndexOf('.');
+            if (firstDot > 0 && firstDot != lastDot) {
+                String parent = domain.substring(firstDot + 1);
+                if (!SHARED_HOSTING_SUFFIXES.contains(parent)) {
+                    String firstLabel = domain.substring(0, firstDot);
+                    if (AD_SUBDOMAIN_LABELS.contains(firstLabel)) {
+                        return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
+                    }
+                    if (domain.startsWith("adserver.") || domain.startsWith("adservers.") ||
+                        domain.startsWith("adservice.") || domain.startsWith("adsystem.") ||
+                        domain.startsWith("adsystems.") || domain.startsWith("ads-api.") ||
+                        domain.startsWith("ad-delivery.") || domain.startsWith("adcontent.") ||
+                        domain.startsWith("adcdn.") || domain.startsWith("ads-cdn.") ||
+                        domain.startsWith("admanager.") || domain.startsWith("mobileads.") ||
+                        domain.startsWith("videoads.") || domain.startsWith("interstitial.") ||
+                        domain.startsWith("rewarded.") || domain.startsWith("adtrack.") ||
+                        domain.startsWith("adtracker.") || domain.startsWith("adx.") ||
+                        domain.startsWith("appads.") || domain.startsWith("app-ads.") ||
+                        domain.startsWith("bannerads.") || domain.startsWith("inappads.") ||
+                        domain.startsWith("static-ads.") || domain.startsWith("nativeads.") ||
+                        domain.startsWith("displayads.") || domain.startsWith("popup.") ||
+                        domain.startsWith("popunder.") || domain.startsWith("servedby.")) {
+                        return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
+                    }
                 }
-            }
-            if (domain.startsWith("ad-") || domain.startsWith("banner-") || domain.startsWith("pop-") ||
-                domain.startsWith("fullscreen-") || domain.startsWith("floating-") || domain.startsWith("sticky-") ||
-                domain.startsWith("servedby.") || domain.startsWith("adpushup.") || domain.startsWith("adserver.") ||
-                domain.startsWith("adservers.") || domain.startsWith("adservice.") || domain.startsWith("adsystem.") ||
-                domain.startsWith("adsystems.") || domain.startsWith("ads-api.") || domain.startsWith("ad-delivery.") ||
-                domain.startsWith("adcontent.") || domain.startsWith("adcdn.") || domain.startsWith("ads-cdn.") ||
-                domain.startsWith("admanager.") || domain.startsWith("mobileads.") || domain.startsWith("videoads.") ||
-                domain.startsWith("interstitial.") || domain.startsWith("rewarded.") || domain.startsWith("adtrack.") ||
-                domain.startsWith("adtracker.") || domain.startsWith("adx.") || domain.startsWith("appads.") ||
-                domain.startsWith("app-ads.") || domain.startsWith("bannerads.") || domain.startsWith("inappads.") ||
-                domain.startsWith("static-ads.") || domain.startsWith("nativeads.") || domain.startsWith("displayads.") ||
-                domain.startsWith("popup.") || domain.startsWith("popunder.")) {
-                return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
             }
         }
 

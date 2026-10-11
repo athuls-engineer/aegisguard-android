@@ -536,7 +536,7 @@ public class AegisVpnService extends VpnService implements Runnable {
                             int ipHeaderLen = (packetBuffer[0] & 0x0F) * 4;
                             if (length >= ipHeaderLen + 20) {
                                 int destPort = ((packetBuffer[ipHeaderLen + 2] & 0xFF) << 8) | (packetBuffer[ipHeaderLen + 3] & 0xFF);
-                                if (destPort == 853 || destPort == 53) {
+                                if (destPort == 853) {
                                     byte[] rstPacket = createIpv4TcpReset(packetBuffer, length, ipHeaderLen);
                                     if (rstPacket != null) {
                                         synchronized (outLock) {
@@ -548,7 +548,7 @@ public class AegisVpnService extends VpnService implements Runnable {
                             continue;
                         } else if (ipVersion == 6 && length >= 60 && (packetBuffer[6] & 0xFF) == 6) {
                             int destPort = ((packetBuffer[42] & 0xFF) << 8) | (packetBuffer[43] & 0xFF);
-                            if (destPort == 853 || destPort == 53) {
+                            if (destPort == 853) {
                                 byte[] rstPacket = createIpv6TcpReset(packetBuffer, length);
                                 if (rstPacket != null) {
                                     synchronized (outLock) {
