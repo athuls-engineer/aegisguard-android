@@ -191,6 +191,16 @@ public class DnsForwarder {
             } else if ("adguard".equals(selectedProvider)) {
                 newServers.add(InetAddress.getByName("94.140.14.14"));
                 newServers.add(InetAddress.getByName("94.140.15.15"));
+            } else if (selectedProvider != null && selectedProvider.startsWith("custom:")) {
+                String customIp = selectedProvider.substring("custom:".length()).trim();
+                try {
+                    newServers.add(InetAddress.getByName(customIp));
+                    newServers.add(InetAddress.getByName("1.1.1.1"));
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to resolve custom DNS upstream: " + customIp, e);
+                    newServers.add(InetAddress.getByName("1.1.1.1"));
+                    newServers.add(InetAddress.getByName("8.8.8.8"));
+                }
             } else {
                 // "racing" - Dual-Stack Anycast Race:
                 // 1. Google Public DNS (IPv4) - Full EDNS Client Subnet (ECS) support guarantees optimal regional CDN edge

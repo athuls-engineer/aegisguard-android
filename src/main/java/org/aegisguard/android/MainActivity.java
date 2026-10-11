@@ -17,19 +17,27 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.OvershootInterpolator;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import java.text.DecimalFormat;
+import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
 
 /**
  * MainActivity — Authentic Tesla Mobile App executive design.
@@ -87,9 +95,30 @@ public class MainActivity extends Activity implements AegisVpnService.TrafficLis
     private SharedPreferences statsPrefs;
     private SharedPreferences settingsPrefs;
 
+    public static class QueryLogEntry {
+        public final String domain;
+        public final String category;
+        public final boolean blocked;
+        public final String latency;
+        public final long timestamp;
+
+        public QueryLogEntry(String domain, String category, boolean blocked, String latency) {
+            this.domain = domain;
+            this.category = category;
+            this.blocked = blocked;
+            this.latency = latency;
+            this.timestamp = System.currentTimeMillis();
+        }
+    }
+
+    private static final LinkedList<QueryLogEntry> detailedLogs = new LinkedList<>();
+
     public static void clearLogs() {
         synchronized (recentLogs) {
             recentLogs.clear();
+        }
+        synchronized (detailedLogs) {
+            detailedLogs.clear();
         }
     }
 
@@ -150,6 +179,34 @@ public class MainActivity extends Activity implements AegisVpnService.TrafficLis
                 toggleShield();
             }
         });
+
+        btnBigRoundTesla.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                if (AegisVpnService.isRunning.get()) {
+                    showSnoozeDialog();
+                    return true;
+                }
+                return false;
+            }
+        });
+
+        if (tvRecentLog != null) {
+            tvRecentLog.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showLiveInspectorDialog();
+                }
+            });
+            if (tvRecentLog.getParent() instanceof View) {
+                ((View) tvRecentLog.getParent()).setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        showLiveInspectorDialog();
+                    }
+                });
+            }
+        }
 
         btnQuickFlush.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -274,6 +331,18 @@ public class MainActivity extends Activity implements AegisVpnService.TrafficLis
                 isToggling = false;
             }
         }, 400);
+
+        if (AegisVpnService.isPaused()) {
+            AegisVpnService.resumeProtection();
+            Intent resumeIntent = new Intent(this, AegisVpnService.class);
+            resumeIntent.setAction(AegisVpnService.ACTION_RESUME);
+            try {
+                startService(resumeIntent);
+            } catch (Throwable ignored) {}
+            Toast.makeText(this, "AegisGuard Shield Resumed", Toast.LENGTH_SHORT).show();
+            updateUiState();
+            return;
+        }
 
         boolean running = AegisVpnService.isRunning.get() || 
             (tvRoundBtnTitle != null && "PROTECTED".equals(tvRoundBtnTitle.getText().toString()));
@@ -522,7 +591,30 @@ public class MainActivity extends Activity implements AegisVpnService.TrafficLis
     private void applyState(boolean active) {
         if (btnBigRoundTesla == null || tvRoundBtnTitle == null) return;
 
-        if (active) {
+        boolean paused = AegisVpnService.isPaused();
+        if (active && paused) {
+            tvStatusDot.setText("● ");
+            tvStatusDot.setTextColor(getResources().getColor(R.color.accent_amber));
+            tvStatusText.setText("Snoozed");
+            tvStatusText.setTextColor(getResources().getColor(R.color.accent_amber));
+            long remMin = Math.max(1, (AegisVpnService.pauseUntilTimestamp - System.currentTimeMillis()) / 60000);
+            tvBatteryStatus.setText(remMin + "m remaining • Bypass active");
+
+            btnBigRoundTesla.setBackgroundResource(R.drawable.bg_tesla_big_round_standby);
+            ivRoundBtnIcon.setImageResource(R.drawable.ic_tesla_unlock);
+            ivRoundBtnIcon.setColorFilter(getResources().getColor(R.color.accent_amber));
+
+            tvRoundBtnTitle.setText("SNOOZED");
+            tvRoundBtnTitle.setTextColor(getResources().getColor(R.color.accent_amber));
+            tvRoundBtnSubtitle.setText("TAP TO RESUME");
+            tvRoundBtnSubtitle.setTextColor(getResources().getColor(R.color.text_secondary));
+
+            tvShieldState.setText("SHIELD SNOOZED");
+            tvShieldState.setTextColor(getResources().getColor(R.color.accent_amber));
+
+            tvLiveStatusIndicator.setText("PAUSED");
+            tvLiveStatusIndicator.setTextColor(getResources().getColor(R.color.accent_amber));
+        } else if (active) {
             tvStatusDot.setText("● ");
             tvStatusDot.setTextColor(getResources().getColor(R.color.tesla_green));
             tvStatusText.setText("Protected");
@@ -589,12 +681,243 @@ public class MainActivity extends Activity implements AegisVpnService.TrafficLis
                 tvUpstreamStatus.setText("Quad9 Swiss Secure (9.9.9.9)");
             } else if ("adguard".equals(provider)) {
                 tvUpstreamStatus.setText("AdGuard Filtering DNS");
+            } else if (provider != null && provider.startsWith("custom:")) {
+                tvUpstreamStatus.setText("Custom: " + provider.substring("custom:".length()));
             } else {
                 tvUpstreamStatus.setText("Racing (Cloudflare + Google Anycast)");
             }
         }
 
         renderRecentLogs();
+    }
+
+    private void showSnoozeDialog() {
+        String[] options = {
+            "⏸️ Snooze for 5 Minutes",
+            "⏸️ Snooze for 15 Minutes",
+            "⏸️ Snooze for 1 Hour",
+            "🛑 Disengage Shield Completely"
+        };
+        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Protection Snooze Timer")
+            .setItems(options, new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    if (which == 0) {
+                        snoozeShield(5 * 60 * 1000L);
+                    } else if (which == 1) {
+                        snoozeShield(15 * 60 * 1000L);
+                    } else if (which == 2) {
+                        snoozeShield(60 * 60 * 1000L);
+                    } else {
+                        toggleShield();
+                    }
+                }
+            })
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show();
+    }
+
+    private void snoozeShield(long durationMs) {
+        Intent pauseIntent = new Intent(this, AegisVpnService.class);
+        pauseIntent.setAction(AegisVpnService.ACTION_PAUSE);
+        pauseIntent.putExtra(AegisVpnService.EXTRA_PAUSE_DURATION_MS, durationMs);
+        startService(pauseIntent);
+        AegisVpnService.pauseProtection(durationMs);
+        long min = durationMs / 60000;
+        Toast.makeText(this, "AegisGuard Snoozed for " + min + " min", Toast.LENGTH_SHORT).show();
+        updateUiState();
+    }
+
+    private void showLiveInspectorDialog() {
+        final AlertDialog.Builder builder = new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert);
+        builder.setTitle("Live Traffic Inspector");
+
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(32, 24, 32, 16);
+
+        // Search Bar
+        final EditText etSearch = new EditText(this);
+        etSearch.setHint("Search domain or service...");
+        etSearch.setTextColor(getResources().getColor(R.color.text_primary));
+        etSearch.setHintTextColor(getResources().getColor(R.color.text_muted));
+        etSearch.setTextSize(13f);
+        etSearch.setBackgroundColor(0x22FFFFFF);
+        etSearch.setPadding(24, 20, 24, 20);
+        root.addView(etSearch);
+
+        // Filter Buttons Container
+        final LinearLayout filterRow = new LinearLayout(this);
+        filterRow.setOrientation(LinearLayout.HORIZONTAL);
+        filterRow.setPadding(0, 16, 0, 16);
+
+        final String[] filters = {"ALL", "BLOCKED", "ALLOWED"};
+        final int[] currentFilter = {0}; // 0=ALL, 1=BLOCKED, 2=ALLOWED
+
+        final ScrollView scrollView = new ScrollView(this);
+        scrollView.setLayoutParams(new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 800));
+        final LinearLayout listContainer = new LinearLayout(this);
+        listContainer.setOrientation(LinearLayout.VERTICAL);
+        scrollView.addView(listContainer);
+
+        final Runnable populateList = new Runnable() {
+            @Override
+            public void run() {
+                listContainer.removeAllViews();
+                String query = etSearch.getText().toString().trim().toLowerCase();
+                List<QueryLogEntry> snapshot;
+                synchronized (detailedLogs) {
+                    snapshot = new ArrayList<>(detailedLogs);
+                }
+
+                if (snapshot.isEmpty()) {
+                    TextView tvEmpty = new TextView(MainActivity.this);
+                    tvEmpty.setText("No query traffic recorded yet. Connect to websites to view live stream.");
+                    tvEmpty.setTextColor(getResources().getColor(R.color.text_muted));
+                    tvEmpty.setPadding(16, 32, 16, 32);
+                    listContainer.addView(tvEmpty);
+                    return;
+                }
+
+                int count = 0;
+                for (final QueryLogEntry entry : snapshot) {
+                    if (currentFilter[0] == 1 && !entry.blocked) continue;
+                    if (currentFilter[0] == 2 && entry.blocked) continue;
+                    if (!query.isEmpty() && !entry.domain.toLowerCase().contains(query)) continue;
+
+                    LinearLayout itemRow = new LinearLayout(MainActivity.this);
+                    itemRow.setOrientation(LinearLayout.HORIZONTAL);
+                    itemRow.setPadding(16, 16, 16, 16);
+                    itemRow.setBackgroundColor(count % 2 == 0 ? 0x0AFFFFFF : 0x00000000);
+                    itemRow.setClickable(true);
+                    itemRow.setFocusable(true);
+
+                    LinearLayout textCol = new LinearLayout(MainActivity.this);
+                    textCol.setOrientation(LinearLayout.VERTICAL);
+                    textCol.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+                    TextView tvDomain = new TextView(MainActivity.this);
+                    tvDomain.setText(entry.domain);
+                    tvDomain.setTextColor(getResources().getColor(R.color.text_primary));
+                    tvDomain.setTextSize(13f);
+                    tvDomain.setTypeface(null, android.graphics.Typeface.BOLD);
+
+                    TextView tvMeta = new TextView(MainActivity.this);
+                    tvMeta.setText(entry.category + " • " + entry.latency);
+                    tvMeta.setTextColor(getResources().getColor(R.color.text_secondary));
+                    tvMeta.setTextSize(11f);
+
+                    textCol.addView(tvDomain);
+                    textCol.addView(tvMeta);
+
+                    TextView tvBadge = new TextView(MainActivity.this);
+                    if (entry.blocked) {
+                        tvBadge.setText("SINKHOLED");
+                        tvBadge.setTextColor(getResources().getColor(R.color.accent_red));
+                    } else {
+                        tvBadge.setText("PASSED");
+                        tvBadge.setTextColor(getResources().getColor(R.color.accent_emerald));
+                    }
+                    tvBadge.setTextSize(10f);
+                    tvBadge.setTypeface(null, android.graphics.Typeface.BOLD);
+
+                    itemRow.addView(textCol);
+                    itemRow.addView(tvBadge);
+
+                    itemRow.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            showDomainActionDialog(entry);
+                        }
+                    });
+
+                    listContainer.addView(itemRow);
+                    count++;
+                }
+            }
+        };
+
+        for (int i = 0; i < filters.length; i++) {
+            final int idx = i;
+            final TextView tvChip = new TextView(this);
+            tvChip.setText(filters[i]);
+            tvChip.setPadding(24, 10, 24, 10);
+            tvChip.setTextSize(11f);
+            tvChip.setTextColor(getResources().getColor(i == 0 ? R.color.text_primary : R.color.text_muted));
+            tvChip.setBackgroundColor(i == 0 ? 0x33FFFFFF : 0x11FFFFFF);
+            tvChip.setClickable(true);
+            tvChip.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    currentFilter[0] = idx;
+                    for (int j = 0; j < filterRow.getChildCount(); j++) {
+                        TextView c = (TextView) filterRow.getChildAt(j);
+                        boolean sel = (j == idx);
+                        c.setTextColor(getResources().getColor(sel ? R.color.text_primary : R.color.text_muted));
+                        c.setBackgroundColor(sel ? 0x33FFFFFF : 0x11FFFFFF);
+                    }
+                    populateList.run();
+                }
+            });
+            filterRow.addView(tvChip);
+        }
+
+        root.addView(filterRow);
+        root.addView(scrollView);
+
+        etSearch.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { populateList.run(); }
+            @Override public void afterTextChanged(Editable s) {}
+        });
+
+        populateList.run();
+        builder.setView(root);
+        builder.setPositiveButton("Close", null);
+        builder.setNeutralButton("Clear Log", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                clearLogs();
+                renderRecentLogs();
+                Toast.makeText(MainActivity.this, "Traffic logs cleared", Toast.LENGTH_SHORT).show();
+            }
+        });
+        builder.show();
+    }
+
+    private void showDomainActionDialog(final QueryLogEntry entry) {
+        final String domain = entry.domain;
+        String[] actions = {
+            "⭐ Add to Custom Whitelist (Always Allow)",
+            "⛔ Add to Custom Blacklist (Always Block)",
+            "📋 Copy Domain Name"
+        };
+
+        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle(domain)
+            .setMessage("Category: " + entry.category + "\nStatus: " + (entry.blocked ? "Sinkholed" : "Passed") + "\nLatency: " + entry.latency)
+            .setItems(actions, new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    if (which == 0) {
+                        FilterEngine.addCustomWhitelist(MainActivity.this, domain);
+                        Toast.makeText(MainActivity.this, "Added to Whitelist: " + domain, Toast.LENGTH_LONG).show();
+                    } else if (which == 1) {
+                        FilterEngine.addCustomBlacklist(MainActivity.this, domain);
+                        Toast.makeText(MainActivity.this, "Added to Blacklist: " + domain, Toast.LENGTH_LONG).show();
+                    } else if (which == 2) {
+                        ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                        if (cm != null) {
+                            cm.setPrimaryClip(ClipData.newPlainText("Domain", domain));
+                            Toast.makeText(MainActivity.this, "Copied: " + domain, Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                }
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
     }
 
     private void animateCounter(final TextView textView, long startVal, long endVal) {
@@ -620,7 +943,7 @@ public class MainActivity extends Activity implements AegisVpnService.TrafficLis
         synchronized (recentLogs) {
             if (recentLogs.isEmpty()) {
                 if (AegisVpnService.isRunning.get()) {
-                    tvRecentLog.setText("Protection active. Telemetry running at line rate...");
+                    tvRecentLog.setText("Protection active. Tap here to open Live Traffic Inspector...");
                 } else {
                     tvRecentLog.setText("Protection standby. Tap button above to engage defense.");
                 }
@@ -645,6 +968,12 @@ public class MainActivity extends Activity implements AegisVpnService.TrafficLis
                     recentLogs.addFirst(line);
                     if (recentLogs.size() > 5) {
                         recentLogs.removeLast();
+                    }
+                }
+                synchronized (detailedLogs) {
+                    detailedLogs.addFirst(new QueryLogEntry(domain, category, blocked, latency));
+                    if (detailedLogs.size() > 100) {
+                        detailedLogs.removeLast();
                     }
                 }
                 renderRecentLogs();

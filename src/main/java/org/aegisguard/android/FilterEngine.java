@@ -22,7 +22,10 @@ public class FilterEngine {
         BLOCK_POPUP,
         BLOCK_TRACKER,
         BLOCK_FINGERPRINT,
-        BLOCK_OEM
+        BLOCK_OEM,
+        BLOCK_MALWARE,
+        BLOCK_CRYPTOMINER,
+        BLOCK_CUSTOM
     }
 
     public static class MatchResult {
@@ -41,11 +44,17 @@ public class FilterEngine {
         }
     }
 
+    public static volatile boolean isPaused = false;
     public static volatile boolean blockAds = true;
     public static volatile boolean blockPopups = true;
     public static volatile boolean blockTrackers = true;
     public static volatile boolean blockFingerprint = true;
     public static volatile boolean blockOem = true;
+    public static volatile boolean blockMalware = true;
+    public static volatile boolean blockCryptominers = true;
+
+    public static final Set<String> CUSTOM_WHITELIST = Collections.synchronizedSet(new HashSet<String>(256));
+    public static final Set<String> CUSTOM_BLACKLIST = Collections.synchronizedSet(new HashSet<String>(256));
 
     public static void loadPreferences(android.content.Context context) {
         if (context == null) return;
@@ -55,6 +64,101 @@ public class FilterEngine {
         blockTrackers = sp.getBoolean("block_trackers", true);
         blockFingerprint = sp.getBoolean("block_fingerprint", true);
         blockOem = sp.getBoolean("block_oem", true);
+        blockMalware = sp.getBoolean("block_malware", true);
+        blockCryptominers = sp.getBoolean("block_cryptominers", true);
+
+        loadCustomRules(context);
+    }
+
+    public static void loadCustomRules(android.content.Context context) {
+        if (context == null) return;
+        try {
+            android.content.SharedPreferences sp = context.getSharedPreferences("aegis_custom_rules_prefs", android.content.Context.MODE_PRIVATE);
+            Set<String> white = sp.getStringSet("custom_whitelist", null);
+            CUSTOM_WHITELIST.clear();
+            if (white != null) {
+                for (String d : white) {
+                    String clean = d.trim().toLowerCase();
+                    if (clean.endsWith(".")) clean = clean.substring(0, clean.length() - 1);
+                    if (!clean.isEmpty()) CUSTOM_WHITELIST.add(clean);
+                }
+            }
+            Set<String> black = sp.getStringSet("custom_blacklist", null);
+            CUSTOM_BLACKLIST.clear();
+            if (black != null) {
+                for (String d : black) {
+                    String clean = d.trim().toLowerCase();
+                    if (clean.endsWith(".")) clean = clean.substring(0, clean.length() - 1);
+                    if (!clean.isEmpty()) CUSTOM_BLACKLIST.add(clean);
+                }
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    public static void saveCustomRules(android.content.Context context) {
+        if (context == null) return;
+        try {
+            android.content.SharedPreferences sp = context.getSharedPreferences("aegis_custom_rules_prefs", android.content.Context.MODE_PRIVATE);
+            sp.edit()
+                .putStringSet("custom_whitelist", new HashSet<>(CUSTOM_WHITELIST))
+                .putStringSet("custom_blacklist", new HashSet<>(CUSTOM_BLACKLIST))
+                .apply();
+        } catch (Throwable ignored) {}
+    }
+
+    public static boolean addCustomWhitelist(android.content.Context context, String domain) {
+        if (domain == null) return false;
+        String clean = domain.trim().toLowerCase();
+        if (clean.endsWith(".")) clean = clean.substring(0, clean.length() - 1);
+        if (clean.isEmpty()) return false;
+        CUSTOM_BLACKLIST.remove(clean);
+        boolean added = CUSTOM_WHITELIST.add(clean);
+        saveCustomRules(context);
+        notifyCacheInvalidated();
+        return added;
+    }
+
+    public static boolean addCustomBlacklist(android.content.Context context, String domain) {
+        if (domain == null) return false;
+        String clean = domain.trim().toLowerCase();
+        if (clean.endsWith(".")) clean = clean.substring(0, clean.length() - 1);
+        if (clean.isEmpty()) return false;
+        CUSTOM_WHITELIST.remove(clean);
+        boolean added = CUSTOM_BLACKLIST.add(clean);
+        saveCustomRules(context);
+        notifyCacheInvalidated();
+        return added;
+    }
+
+    public static boolean removeCustomRule(android.content.Context context, String domain) {
+        if (domain == null) return false;
+        String clean = domain.trim().toLowerCase();
+        if (clean.endsWith(".")) clean = clean.substring(0, clean.length() - 1);
+        boolean removed = CUSTOM_WHITELIST.remove(clean) | CUSTOM_BLACKLIST.remove(clean);
+        saveCustomRules(context);
+        notifyCacheInvalidated();
+        return removed;
+    }
+
+    private static void notifyCacheInvalidated() {
+        try {
+            Class<?> clazz = Class.forName("org.aegisguard.android.DnsForwarder");
+            clazz.getMethod("clearCacheGlobal").invoke(null);
+        } catch (Throwable ignored) {}
+    }
+
+    public static boolean isCustomWhitelisted(String domain) {
+        if (domain == null) return false;
+        String clean = domain.trim().toLowerCase();
+        if (clean.endsWith(".")) clean = clean.substring(0, clean.length() - 1);
+        return CUSTOM_WHITELIST.contains(clean);
+    }
+
+    public static boolean isCustomBlacklisted(String domain) {
+        if (domain == null) return false;
+        String clean = domain.trim().toLowerCase();
+        if (clean.endsWith(".")) clean = clean.substring(0, clean.length() - 1);
+        return CUSTOM_BLACKLIST.contains(clean);
     }
 
     private static final Set<String> AD_DOMAINS = new HashSet<>(512);
@@ -62,6 +166,8 @@ public class FilterEngine {
     private static final Set<String> TRACKER_DOMAINS = new HashSet<>(256);
     private static final Set<String> FINGERPRINT_DOMAINS = new HashSet<>(128);
     private static final Set<String> OEM_DOMAINS = new HashSet<>(128);
+    private static final Set<String> MALWARE_DOMAINS = new HashSet<>(256);
+    private static final Set<String> CRYPTOMINER_DOMAINS = new HashSet<>(128);
     public static final Set<String> DYNAMIC_DOMAINS = Collections.synchronizedSet(new HashSet<String>(4096));
 
     // High-performance heuristic ad subdomain labels (O(1) instant match)
@@ -260,6 +366,28 @@ public class FilterEngine {
             "analytics.asus.com", "metrics.lenovo.com"
         };
         Collections.addAll(OEM_DOMAINS, oem);
+
+        // 6. Malware, Trojan & Phishing Command/Control Infrastructure
+        String[] malware = new String[] {
+            "vxvault.net", "malwaredomainlist.com", "malware-traffic-analysis.net",
+            "cybercrime-tracker.net", "openphish.com", "phishtank.org", "phishtank.com",
+            "urlhaus.abuse.ch", "urlhaus-api.abuse.ch", "tracker.h3x.eu", "bambenekconsulting.com",
+            "ransomwaretracker.abuse.ch", "zeustracker.abuse.ch", "feodotracker.abuse.ch",
+            "blocklist.de", "threatfeeds.io", "cinsscore.com", "greensnow.co",
+            "turris.cz", "dan.me.uk", "emergingthreats.net",
+            "cryptolocker.cc", "wannacry-c2.net", "emotet-feed.org", "qakbot-tracker.net", "dridex-sink.info"
+        };
+        Collections.addAll(MALWARE_DOMAINS, malware);
+
+        // 7. In-Browser Cryptojacking & Coin-Hive Mining Networks
+        String[] cryptominers = new String[] {
+            "coinhive.com", "coin-hive.com", "crypto-loot.com", "cryptoloot.pro",
+            "monerominer.rocks", "jsecoin.com", "webminepool.com", "webminerpool.com", "authedmine.com",
+            "mineralt.io", "deepminer.org", "coinimp.com", "gridcash.net",
+            "minr.pw", "coinhive.min.js", "cryptojacking.org", "coin-have.com",
+            "papoto.com", "load.jsecoin.com", "static.reauthenticator.com", "minergate.com"
+        };
+        Collections.addAll(CRYPTOMINER_DOMAINS, cryptominers);
     }
 
     /**
@@ -543,9 +671,29 @@ public class FilterEngine {
             domain.equals("yahoo.com") || domain.endsWith(".yahoo.com") ||
             domain.equals("duckduckgo.com") || domain.endsWith(".duckduckgo.com") ||
             domain.equals("brave.com") || domain.endsWith(".brave.com") ||
+            // Captive Portals & Network Login Detection
             domain.equals("connectivitycheck.gstatic.com") ||
             domain.equals("connectivitycheck.android.com") ||
-            domain.equals("clients3.google.com");
+            domain.equals("clients3.google.com") ||
+            domain.equals("captive.apple.com") ||
+            domain.equals("appleiphonecell.com") ||
+            domain.equals("www.msftconnecttest.com") ||
+            domain.equals("ipv6.msftconnecttest.com") ||
+            domain.equals("msftncsi.com") ||
+            domain.equals("detectportal.firefox.com") ||
+            domain.equals("connectivity.samsung.com") ||
+            domain.equals("captive.vivo.com") ||
+            domain.equals("connect.rom.miui.com") ||
+            domain.equals("nmcheck.gnome.org") ||
+            domain.equals("network-test.debian.org") ||
+            // Authentication, SSO & Security Handshakes
+            domain.equals("accounts.google.com") || domain.endsWith(".accounts.google.com") ||
+            domain.equals("login.microsoftonline.com") ||
+            domain.equals("appleid.apple.com") ||
+            domain.equals("auth0.com") || domain.endsWith(".auth0.com") ||
+            domain.equals("recaptcha.net") || domain.endsWith(".recaptcha.net") ||
+            domain.equals("hcaptcha.com") || domain.endsWith(".hcaptcha.com") ||
+            domain.equals("challenges.cloudflare.com");
     }
 
     /**
@@ -562,13 +710,40 @@ public class FilterEngine {
             domain = domain.substring(0, domain.length() - 1);
         }
 
-        // 1. FAST-PATH WHITELIST: Essential services skip all filtering instantly in < 0.001ms
+        // 0. SNOOZE / PAUSE PROTECTION
+        if (isPaused) {
+            return new MatchResult(Decision.CLEAN, "Defense Snoozed/Paused", "Snoozed");
+        }
+
+        // 1. CUSTOM USER WHITELIST (Highest Priority 1 - Instant Override)
+        String current = domain;
+        while (current.contains(".")) {
+            if (CUSTOM_WHITELIST.contains(current)) {
+                return new MatchResult(Decision.CLEAN, "User Custom Whitelist", "User_Whitelist:" + current);
+            }
+            int nextDot = current.indexOf('.');
+            if (nextDot == -1) break;
+            current = current.substring(nextDot + 1);
+        }
+
+        // 2. CUSTOM USER BLACKLIST (Priority 2 - Instant User Sinkhole)
+        current = domain;
+        while (current.contains(".")) {
+            if (CUSTOM_BLACKLIST.contains(current)) {
+                return new MatchResult(Decision.BLOCK_CUSTOM, "User Custom Blacklist", "User_Blacklist:" + current);
+            }
+            int nextDot = current.indexOf('.');
+            if (nextDot == -1) break;
+            current = current.substring(nextDot + 1);
+        }
+
+        // 3. FAST-PATH WHITELIST: Essential services skip all filtering instantly in < 0.001ms
         if (isEssentialService(domain)) {
             return new MatchResult(Decision.CLEAN, "Essential Service", "Whitelisted");
         }
 
-        // 2. Suffix walk: sub.adservice.google.com -> adservice.google.com -> google.com
-        String current = domain;
+        // 4. Suffix walk: sub.adservice.google.com -> adservice.google.com -> google.com
+        current = domain;
         while (current.contains(".")) {
             if (SHARED_HOSTING_SUFFIXES.contains(current) && !domain.equals(current)) {
                 break;
@@ -588,6 +763,12 @@ public class FilterEngine {
             if (blockOem && OEM_DOMAINS.contains(current)) {
                 return new MatchResult(Decision.BLOCK_OEM, "OEM System Telemetry", "Aegis_OEM_Telemetry:" + current);
             }
+            if (blockMalware && MALWARE_DOMAINS.contains(current)) {
+                return new MatchResult(Decision.BLOCK_MALWARE, "Malware & Phishing Threat", "Aegis_Malware:" + current);
+            }
+            if (blockCryptominers && CRYPTOMINER_DOMAINS.contains(current)) {
+                return new MatchResult(Decision.BLOCK_CRYPTOMINER, "In-Browser Cryptominer", "Aegis_CryptoMiner:" + current);
+            }
             if (DYNAMIC_DOMAINS.contains(current)) {
                 // Safeguard: Only block if exact domain match OR if current is a specific subdomain (contains at least 2 dots)
                 // This prevents dynamic rules from ever breaking an entire apex website!
@@ -601,7 +782,7 @@ public class FilterEngine {
             current = current.substring(nextDot + 1);
         }
 
-        // 3. Fast Heuristic detection on standard ad, banner, popup & interstitial subdomains
+        // 5. Fast Heuristic detection on standard ad, banner, popup & interstitial subdomains
         if (blockAds) {
             int firstDot = domain.indexOf('.');
             if (firstDot > 0) {
@@ -631,6 +812,7 @@ public class FilterEngine {
 
     public static int getTotalRulesCount() {
         return AD_DOMAINS.size() + POPUP_DOMAINS.size() + TRACKER_DOMAINS.size() + 
-               FINGERPRINT_DOMAINS.size() + OEM_DOMAINS.size() + DYNAMIC_DOMAINS.size();
+               FINGERPRINT_DOMAINS.size() + OEM_DOMAINS.size() + MALWARE_DOMAINS.size() +
+               CRYPTOMINER_DOMAINS.size() + CUSTOM_BLACKLIST.size() + DYNAMIC_DOMAINS.size();
     }
 }

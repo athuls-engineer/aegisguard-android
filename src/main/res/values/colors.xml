@@ -22,6 +22,7 @@
     <color name="accent_emerald_dim">#152E20</color>
     <color name="accent_red">#FF3B30</color>
     <color name="accent_red_dim">#361517</color>
+    <color name="accent_amber">#FF9500</color>
 
     <!-- Tesla High-Contrast Typography Hierarchy -->
     <color name="text_primary">#FFFFFF</color>

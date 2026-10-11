@@ -53,6 +53,25 @@ public class AegisVpnService extends VpnService implements Runnable {
 
     public static final String ACTION_START = "org.aegisguard.android.START";
     public static final String ACTION_STOP = "org.aegisguard.android.STOP";
+    public static final String ACTION_PAUSE = "org.aegisguard.android.PAUSE";
+    public static final String ACTION_RESUME = "org.aegisguard.android.RESUME";
+    public static final String EXTRA_PAUSE_DURATION_MS = "pause_duration_ms";
+
+    public static volatile long pauseUntilTimestamp = 0;
+
+    public static boolean isPaused() {
+        return System.currentTimeMillis() < pauseUntilTimestamp;
+    }
+
+    public static void pauseProtection(long durationMs) {
+        pauseUntilTimestamp = System.currentTimeMillis() + durationMs;
+        FilterEngine.isPaused = true;
+    }
+
+    public static void resumeProtection() {
+        pauseUntilTimestamp = 0;
+        FilterEngine.isPaused = false;
+    }
 
     public static final AtomicLong totalQueries = new AtomicLong(0);
     public static final AtomicLong adsBlockedCount = new AtomicLong(0);
@@ -206,10 +225,26 @@ public class AegisVpnService extends VpnService implements Runnable {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null && ACTION_STOP.equals(intent.getAction())) {
-            stopVpn();
-            stopSelf();
-            return START_NOT_STICKY;
+        if (intent != null) {
+            String action = intent.getAction();
+            if (ACTION_STOP.equals(action)) {
+                stopVpn();
+                stopSelf();
+                return START_NOT_STICKY;
+            } else if (ACTION_PAUSE.equals(action)) {
+                long duration = intent.getLongExtra(EXTRA_PAUSE_DURATION_MS, 15 * 60 * 1000L);
+                pauseProtection(duration);
+                maybeUpdateNotification();
+                notifyStateChanged(isRunning.get());
+                updateQuickSettingsTile(this);
+                return START_STICKY;
+            } else if (ACTION_RESUME.equals(action)) {
+                resumeProtection();
+                maybeUpdateNotification();
+                notifyStateChanged(isRunning.get());
+                updateQuickSettingsTile(this);
+                return START_STICKY;
+            }
         }
 
         promoteToForeground();
@@ -824,13 +859,23 @@ public class AegisVpnService extends VpnService implements Runnable {
     }
 
     private Notification buildForegroundNotification() {
+        boolean paused = isPaused();
         long blocked = adsBlockedCount.get() + trackersBlockedCount.get();
         long queries = totalQueries.get();
         long saved = bytesSaved.get();
         String savedStr = formatBytes(saved);
 
-        String title = "AegisGuard Active • 100% Protected";
-        String summary = "🛡️ " + formatCount(blocked) + " Blocked  •  ⚡ < 0.01ms  •  💾 " + savedStr;
+        String title;
+        String summary;
+        if (paused) {
+            long remainingMs = Math.max(0, pauseUntilTimestamp - System.currentTimeMillis());
+            long remainingMin = Math.max(1, TimeUnit.MILLISECONDS.toMinutes(remainingMs));
+            title = "⏸️ AegisGuard Snoozed (" + remainingMin + "m left)";
+            summary = "Defense temporarily paused • Tap 'Resume' to re-arm";
+        } else {
+            title = "AegisGuard Active • 100% Protected";
+            summary = "🛡️ " + formatCount(blocked) + " Blocked  •  ⚡ < 0.01ms  •  💾 " + savedStr;
+        }
 
         Intent notifyIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(
@@ -852,8 +897,9 @@ public class AegisVpnService extends VpnService implements Runnable {
 
         Notification.BigTextStyle bigTextStyle = new Notification.BigTextStyle()
             .setBigContentTitle(title)
-            .setSummaryText("Hardware Line-Rate Sinkhole")
+            .setSummaryText(paused ? "Snooze Mode Active" : "Hardware Line-Rate Sinkhole")
             .bigText(
+                (paused ? "⏸️ Protection Snoozed: All DNS queries passing directly\n" : "") +
                 "🛡️ Ads & Threats Intercepted: " + formatCount(blocked) + "\n" +
                 "⚡ Engine Latency: < 0.01 ms (In-Memory RAM Cache)\n" +
                 "💾 Data Saved: " + savedStr + "\n" +
@@ -872,8 +918,21 @@ public class AegisVpnService extends VpnService implements Runnable {
                .setWhen(System.currentTimeMillis())
                .setShowWhen(false)
                .setSortKey("!000000_aegisguard")
-               .setOnlyAlertOnce(true)
-               .addAction(android.R.drawable.ic_media_pause, "Pause", stopPendingIntent);
+               .setOnlyAlertOnce(true);
+
+        if (paused) {
+            Intent resumeIntent = new Intent(this, AegisVpnService.class);
+            resumeIntent.setAction(ACTION_RESUME);
+            PendingIntent resumePending = PendingIntent.getService(this, 2, resumeIntent, PendingIntent.FLAG_IMMUTABLE);
+            builder.addAction(android.R.drawable.ic_media_play, "Resume Shield", resumePending);
+        } else {
+            Intent pauseIntent = new Intent(this, AegisVpnService.class);
+            pauseIntent.setAction(ACTION_PAUSE);
+            pauseIntent.putExtra(EXTRA_PAUSE_DURATION_MS, 15 * 60 * 1000L);
+            PendingIntent pausePending = PendingIntent.getService(this, 3, pauseIntent, PendingIntent.FLAG_IMMUTABLE);
+            builder.addAction(android.R.drawable.ic_media_pause, "Pause 15m", pausePending);
+        }
+        builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "Turn Off", stopPendingIntent);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);

@@ -262,7 +262,7 @@ public class AegisGuardStressTest {
             FilterEngine.DYNAMIC_DOMAINS.add("cloud-threat-" + d + ".malwaredomain.com");
         }
 
-        // Essential services that MUST NEVER be blocked
+        // Essential services & captive portals that MUST NEVER be blocked
         String[] essentialRoots = new String[] {
             "flipkart.com", "static-assets-web.flixcart.com", "rukminim1.flixcart.com", "rukminim2.flixcart.com", "img1a.flixcart.com",
             "amazon.in", "amazon.com", "media-amazon.com", "ssl-images-amazon.com",
@@ -275,7 +275,9 @@ public class AegisGuardStressTest {
             "npci.org.in", "paytm.com", "phonepe.com", "razorpay.com",
             "cloudflare.com", "fastly.net", "akamaized.net", "openai.com", "chatgpt.com",
             "cdnjs.cloudflare.com", "jsdelivr.net", "unpkg.com", "bit.ly", "wikipedia.org",
-            "bbc.com", "vimeo.com", "booking.com", "coursera.org", "docker.com"
+            "bbc.com", "vimeo.com", "booking.com", "coursera.org", "docker.com",
+            "captive.apple.com", "www.msftconnecttest.com", "connectivitycheck.gstatic.com",
+            "accounts.google.com", "appleid.apple.com", "login.microsoftonline.com", "auth0.com", "challenges.cloudflare.com"
         };
 
         // Ad networks that MUST ALWAYS be blocked
@@ -289,21 +291,36 @@ public class AegisGuardStressTest {
             "appsflyer.com", "branch.io", "kochava.com", "adjust.com", "mixpanel.com"
         };
 
+        // Malware & Cryptominer test vectors
+        String[] malwareRoots = new String[] {
+            "cryptolocker.cc", "wannacry-c2.net", "emotet-feed.org", "qakbot-tracker.net", "dridex-sink.info"
+        };
+        String[] cryptominerRoots = new String[] {
+            "coinhive.com", "crypto-loot.com", "coin-hive.com", "minergate.com", "cryptoloot.pro", "webminerpool.com"
+        };
+
         // Subdomain ad heuristics
         String[] heuristicPrefixes = new String[] {
             "ad.", "ads.", "adx.", "appads.", "app-ads.", "adtrack.", "adtracker.",
             "banner.", "banners.", "bannerads.", "inappads.", "popup.", "popunder."
         };
 
+        // Ensure clean state before test run
+        FilterEngine.isPaused = false;
+        FilterEngine.blockMalware = true;
+        FilterEngine.blockCryptominers = true;
+        FilterEngine.CUSTOM_WHITELIST.clear();
+        FilterEngine.CUSTOM_BLACKLIST.clear();
+
         long evalStartNs = System.nanoTime();
 
         for (int i = 0; i < count; i++) {
             totalExecuted.incrementAndGet();
-            int subType = i % 4;
+            int subType = i % 8;
 
             try {
                 if (subType == 0) {
-                    // 10,000 Whitelist Immunity Scenarios
+                    // 5,000 Whitelist Immunity & Captive Portal Scenarios
                     String base = essentialRoots[i % essentialRoots.length];
                     String queryDomain = (i % 3 == 0) ? base : ("sub" + (i % 100) + "." + base);
                     FilterEngine.MatchResult res = FilterEngine.evaluate(queryDomain);
@@ -311,7 +328,7 @@ public class AegisGuardStressTest {
                         throw new IllegalStateException("CRITICAL FALSE POSITIVE: Whitelisted domain was blocked: " + queryDomain);
                     }
                 } else if (subType == 1) {
-                    // 10,000 Core Ad & Tracker Blocking Scenarios
+                    // 5,000 Core Ad & Tracker Blocking Scenarios
                     String base = adRoots[i % adRoots.length];
                     String queryDomain = (i % 2 == 0) ? base : ("srv" + (i % 50) + "." + base);
                     FilterEngine.MatchResult res = FilterEngine.evaluate(queryDomain);
@@ -319,20 +336,63 @@ public class AegisGuardStressTest {
                         throw new IllegalStateException("Ad domain was NOT blocked: " + queryDomain);
                     }
                 } else if (subType == 2) {
-                    // 10,000 Heuristic Subdomain Scenarios
+                    // 5,000 Heuristic Subdomain Scenarios
                     String prefix = heuristicPrefixes[i % heuristicPrefixes.length];
                     String queryDomain = prefix + "randomcorp" + (i % 500) + ".com";
                     FilterEngine.MatchResult res = FilterEngine.evaluate(queryDomain);
                     if (!res.isBlocked()) {
                         throw new IllegalStateException("Heuristic ad prefix was NOT blocked: " + queryDomain);
                     }
-                } else {
-                    // 10,000 Dynamic Cloud Threats & Boundary Strings (Unicode, extreme lengths, etc.)
+                } else if (subType == 3) {
+                    // 5,000 Dynamic Cloud Threat Feeds
+                    String dynamicDomain = "cloud-threat-" + (i % 5000) + ".malwaredomain.com";
+                    FilterEngine.MatchResult res = FilterEngine.evaluate(dynamicDomain);
+                    if (!res.isBlocked()) {
+                        throw new IllegalStateException("Dynamic threat domain was NOT blocked: " + dynamicDomain);
+                    }
+                } else if (subType == 4) {
+                    // 5,000 Custom Whitelist Priority Overrides (User can unblock even ad roots)
+                    String adDomain = adRoots[i % adRoots.length];
+                    FilterEngine.CUSTOM_WHITELIST.add(adDomain);
+                    FilterEngine.MatchResult res = FilterEngine.evaluate(adDomain);
+                    FilterEngine.CUSTOM_WHITELIST.remove(adDomain); // Clean up
+                    if (res.isBlocked()) {
+                        throw new IllegalStateException("Custom whitelist failed to override ad block: " + adDomain);
+                    }
+                } else if (subType == 5) {
+                    // 5,000 Custom Blacklist Overrides (User can custom-block any domain)
+                    String customDomain = "user-blocked-target-" + (i % 100) + ".example.com";
+                    FilterEngine.CUSTOM_BLACKLIST.add(customDomain);
+                    FilterEngine.MatchResult res = FilterEngine.evaluate(customDomain);
+                    FilterEngine.CUSTOM_BLACKLIST.remove(customDomain); // Clean up
+                    if (!res.isBlocked() || res.decision != FilterEngine.Decision.BLOCK_CUSTOM) {
+                        throw new IllegalStateException("Custom blacklist failed to block target: " + customDomain);
+                    }
+                } else if (subType == 6) {
+                    // 5,000 Malware & Cryptominer Defense Scenarios
                     if (i % 2 == 0) {
-                        String dynamicDomain = "cloud-threat-" + (i % 5000) + ".malwaredomain.com";
-                        FilterEngine.MatchResult res = FilterEngine.evaluate(dynamicDomain);
-                        if (!res.isBlocked()) {
-                            throw new IllegalStateException("Dynamic threat domain was NOT blocked: " + dynamicDomain);
+                        String mal = malwareRoots[i % malwareRoots.length];
+                        FilterEngine.MatchResult res = FilterEngine.evaluate(mal);
+                        if (!res.isBlocked() || res.decision != FilterEngine.Decision.BLOCK_MALWARE) {
+                            throw new IllegalStateException("Malware domain was NOT blocked: " + mal);
+                        }
+                    } else {
+                        String miner = cryptominerRoots[i % cryptominerRoots.length];
+                        FilterEngine.MatchResult res = FilterEngine.evaluate(miner);
+                        if (!res.isBlocked() || res.decision != FilterEngine.Decision.BLOCK_CRYPTOMINER) {
+                            throw new IllegalStateException("Cryptominer domain was NOT blocked: " + miner);
+                        }
+                    }
+                } else {
+                    // 5,000 Snooze & Boundary Strings
+                    if (i % 4 == 0) {
+                        // Test Snooze / Paused mode: when paused, EVERYTHING passes clean
+                        FilterEngine.isPaused = true;
+                        String ad = adRoots[i % adRoots.length];
+                        FilterEngine.MatchResult res = FilterEngine.evaluate(ad);
+                        FilterEngine.isPaused = false; // Restore
+                        if (res.isBlocked()) {
+                            throw new IllegalStateException("Snooze mode failed: ad was blocked while paused: " + ad);
                         }
                     } else {
                         // Extreme boundary strings: punycode, dots, empty, null

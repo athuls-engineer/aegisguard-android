@@ -21,8 +21,13 @@ public class AegisTileService extends TileService {
     public void onClick() {
         super.onClick();
         boolean active = AegisVpnService.isRunning.get();
+        boolean paused = AegisVpnService.isPaused();
 
-        if (active) {
+        if (active && paused) {
+            Intent resumeIntent = new Intent(this, AegisVpnService.class);
+            resumeIntent.setAction(AegisVpnService.ACTION_RESUME);
+            startService(resumeIntent);
+        } else if (active) {
             Intent stopIntent = new Intent(this, AegisVpnService.class);
             stopIntent.setAction(AegisVpnService.ACTION_STOP);
             startService(stopIntent);
@@ -44,21 +49,27 @@ public class AegisTileService extends TileService {
         if (tile == null) return;
 
         boolean active = AegisVpnService.isRunning.get();
+        boolean paused = AegisVpnService.isPaused();
         tile.setLabel(getString(R.string.tile_name));
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             tile.setIcon(android.graphics.drawable.Icon.createWithResource(this, R.drawable.ic_stat_shield));
         }
 
-        if (active) {
+        if (active && !paused) {
             tile.setState(Tile.STATE_ACTIVE);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 tile.setSubtitle("Protected");
             }
+        } else if (active && paused) {
+            tile.setState(Tile.STATE_INACTIVE);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                tile.setSubtitle("Snoozed");
+            }
         } else {
             tile.setState(Tile.STATE_INACTIVE);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                tile.setSubtitle("Paused");
+                tile.setSubtitle("Standby");
             }
         }
         tile.updateTile();
