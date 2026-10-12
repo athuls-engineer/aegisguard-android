@@ -205,6 +205,8 @@ public class FilterEngine {
             "ep1.adtrafficquality.google", "admob.google.com", "googlemobileads.google.com",
             "app-measurement.com", "ads.youtube.com", "ad.youtube.com",
             "youtubeads.googleapis.com", "youtubei-ad.googleapis.com",
+            "ad-delivery.youtube.com", "eligibility-panelresearch.googlevideo.com",
+            "video-stats.l.google.com",
             // Feature Flagging & In-App Ad Rollout Gateways (Character.ai, etc.)
             "prodregistryv2.org", "statsigapi.net", "api.statsig.com", "statsig.com",
             // App Monetization, Full-Screen Video & Interstitial SDKs
@@ -440,7 +442,10 @@ public class FilterEngine {
             domain.equals("ad.youtube.com") || domain.endsWith(".ad.youtube.com") ||
             domain.contains("youtubeads.") || domain.contains("youtubei-ad.") ||
             domain.equals("imasdk.googleapis.com") || domain.endsWith(".imasdk.googleapis.com") ||
-            domain.contains("adtrafficquality.")) {
+            domain.contains("adtrafficquality.") ||
+            domain.contains("eligibility-panelresearch.") ||
+            domain.contains("ad-delivery.") ||
+            domain.contains("video-stats.")) {
             return false;
         }
 
