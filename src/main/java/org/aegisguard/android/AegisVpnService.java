@@ -458,12 +458,7 @@ public class AegisVpnService extends VpnService implements Runnable {
                     // By adding them to disallowed applications, Android routes their connections directly
                     // over the physical Wi-Fi/LTE network with NET_CAPABILITY_NOT_VPN, eliminating NET_101.
                     String[] streamingApps = new String[] {
-                        // YouTube Stack (Native Line-Rate 4K60 Streaming, Zero Playback Buffering)
-                        "com.google.android.youtube",
-                        "com.google.android.apps.youtube.music",
-                        "com.google.android.apps.youtube.kids",
-                        "com.google.android.youtube.tv",
-                        // OTT & Regional Streaming
+                        // OTT & Regional Streaming with strict anti-VPN DRM flags (NET_101 prevention)
                         "in.startv.hotstar",                // Disney+ Hotstar / JioHotstar India
                         "in.startv.hotstar.dplus",          // Hotstar Variant
                         "in.startv.hotstar.dplus.tv",       // Hotstar Android TV

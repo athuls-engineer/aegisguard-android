@@ -202,7 +202,8 @@ public class FilterEngine {
             "adclick.g.doubleclick.net", "ade.googlesyndication.com",
             "cm.g.doubleclick.net", "stats.g.doubleclick.net", "adtrafficquality.google",
             "ep1.adtrafficquality.google", "admob.google.com", "googlemobileads.google.com",
-            "app-measurement.com",
+            "app-measurement.com", "ads.youtube.com", "ad.youtube.com",
+            "youtubeads.googleapis.com", "youtubei-ad.googleapis.com",
             // Feature Flagging & In-App Ad Rollout Gateways (Character.ai, etc.)
             "prodregistryv2.org", "statsigapi.net", "api.statsig.com", "statsig.com",
             // App Monetization, Full-Screen Video & Interstitial SDKs
@@ -409,7 +410,12 @@ public class FilterEngine {
             domain.contains("analytics.tiktok.com") || domain.contains("ads.tiktok.com") ||
             domain.contains("ads.twitter.com") || domain.contains("ads-twitter.com") ||
             domain.contains("adservice.google.") || domain.contains("googleads.") ||
-            domain.contains("pagead2.") || domain.contains("analytics.google.")) {
+            domain.contains("pagead2.") || domain.contains("analytics.google.") ||
+            domain.equals("ads.youtube.com") || domain.endsWith(".ads.youtube.com") ||
+            domain.equals("ad.youtube.com") || domain.endsWith(".ad.youtube.com") ||
+            domain.contains("youtubeads.") || domain.contains("youtubei-ad.") ||
+            domain.equals("imasdk.googleapis.com") || domain.endsWith(".imasdk.googleapis.com") ||
+            domain.contains("adtrafficquality.")) {
             return false;
         }
 

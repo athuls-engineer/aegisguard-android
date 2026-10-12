@@ -288,7 +288,8 @@ public class AegisGuardStressTest {
             "taboola.com", "outbrain.com", "criteo.com", "revcontent.com", "mgid.com",
             "popads.net", "popcash.net", "propellerads.com", "adsterra.com",
             "highcpmgate.com", "monetag.com", "admaven.com", "ezoic.net", "mediavine.com", "snigelweb.com", "freestar.io",
-            "appsflyer.com", "branch.io", "kochava.com", "adjust.com", "mixpanel.com"
+            "appsflyer.com", "branch.io", "kochava.com", "adjust.com", "mixpanel.com",
+            "ads.youtube.com", "ad.youtube.com", "imasdk.googleapis.com", "youtubeads.googleapis.com"
         };
 
         // Malware & Cryptominer test vectors
