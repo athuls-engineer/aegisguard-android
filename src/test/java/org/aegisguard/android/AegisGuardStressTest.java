@@ -337,12 +337,14 @@ public class AegisGuardStressTest {
                         throw new IllegalStateException("Ad domain was NOT blocked: " + queryDomain);
                     }
                 } else if (subType == 2) {
-                    // 5,000 Heuristic Subdomain Scenarios
+                    // 5,000 Heuristic Subdomain Scenarios (including multi-label in-app ad subdomains)
                     String prefix = heuristicPrefixes[i % heuristicPrefixes.length];
-                    String queryDomain = prefix + "randomcorp" + (i % 500) + ".com";
+                    String queryDomain = (i % 2 == 0)
+                        ? (prefix + "randomcorp" + (i % 500) + ".com")
+                        : ("us-east." + prefix + "gamecorp" + (i % 500) + ".com");
                     FilterEngine.MatchResult res = FilterEngine.evaluate(queryDomain);
                     if (!res.isBlocked()) {
-                        throw new IllegalStateException("Heuristic ad prefix was NOT blocked: " + queryDomain);
+                        throw new IllegalStateException("Heuristic in-app ad subdomain was NOT blocked: " + queryDomain);
                     }
                 } else if (subType == 3) {
                     // 5,000 Dynamic Cloud Threat Feeds

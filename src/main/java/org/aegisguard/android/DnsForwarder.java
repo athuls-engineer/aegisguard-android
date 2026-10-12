@@ -281,9 +281,8 @@ public class DnsForwarder {
                 }
 
                 return response;
-            } else {
-                cache.remove(cacheKey);
             }
+            // Keep stale cache entry in memory as an emergency zero-breakage fallback if upstream fails
         }
 
         // 2. Upstream Wire-Format Resolution (Dual-Stack Anycast Racing)
@@ -302,11 +301,12 @@ public class DnsForwarder {
             return rawResponse;
         }
 
-        // 3. Fallback: If cache had an existing entry (even if expired), return it rather than breaking the website!
+        // 3. Resilient Fallback: If cache had an existing entry (even if expired), return it rather than breaking the website!
         if (cached != null) {
             byte[] response = Arrays.copyOf(cached.rawPayload, cached.rawPayload.length);
             response[0] = (byte) ((query.txId >> 8) & 0xFF);
             response[1] = (byte) (query.txId & 0xFF);
+            putCache(cacheKey, cached.rawPayload); // Re-arm cache grace period
             return response;
         }
 

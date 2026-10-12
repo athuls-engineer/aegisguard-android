@@ -178,7 +178,8 @@ public class FilterEngine {
         "banner", "banners", "bannerad", "bannerads", "inappads",
         "popup", "popups", "popunder", "popunders",
         "interstitial", "interstitials", "displayads", "nativeads",
-        "pagead", "videoads", "servedby"
+        "pagead", "videoads", "servedby", "rewarded", "rewardedads",
+        "mobileads", "mobilead", "admob", "adapi", "adsapi", "adanalytics"
     ));
 
     private static final Set<String> SHARED_HOSTING_SUFFIXES = new HashSet<>(Arrays.asList(
@@ -275,7 +276,31 @@ public class FilterEngine {
             "innovid.com", "spotxchange.com", "spotx.tv", "tremorhub.com",
             "springserve.com", "beachfront.com", "publica.com", "telaria.com",
             "freewheel.tv", "freewheel.com", "startappservice.com", "startapp.com",
-            "admarvel.com", "inmobi.net"
+            "admarvel.com", "inmobi.net",
+            // Universal In-App Advertising SDKs & App Monetization Endpoints
+            "adservice.google.co.in", "adservice.google.co.uk", "adservice.google.de", "adservice.google.fr",
+            "adservice.google.es", "adservice.google.it", "adservice.google.ca", "adservice.google.com.au",
+            "adservice.google.com.br", "adservice.google.co.jp", "adservice.google.ru",
+            "ads.unity.com", "unityads-api.unity3d.com",
+            "array.applovin.com", "al-cdn.applovin.com", "assets.applvn.com", "al.applvn.com",
+            "rt.applvn.com", "bid.applovin.com", "img.applovin.com", "w.applovin.com",
+            "atom-data.io", "supersonicads-a.akamaihd.net", "ironsrc.mobi", "supersonic.mobi", "mobile.is.com",
+            "liftoff-ads.com", "ad-delivery.vungle.com", "init.vungle.com", "config.vungle.com",
+            "mtgbid.com", "mtgsec.com", "mintegral.cn",
+            "inmobicdn.net", "inmobicdn.com",
+            "pangolin-sdk.com", "pangle-ads.com", "pangolin.snssdk.com", "api-access.pangolin-sdk-toutiao.com",
+            "business-api.tiktok.com",
+            "fairbid.fyber.com", "adcolony.net", "dtignite.com",
+            "api.bigossp.com", "ads-api.moloco.com",
+            "c.startappservice.com", "events.startappservice.com",
+            "aps.amazon.com",
+            "adserver.truecaller.com", "ads.truecaller.com", "ads-sdk.truecaller.com", "tcads.truecaller.com",
+            "appier.net", "ai.appier.net", "appodeal.com", "appodealx.com", "pollfish.com", "api.pollfish.com", "yango.com",
+            "samsungads.com", "gfts.samsungadhub.com", "samsungadhub.com",
+            "ads.heytap.com", "ad.heytap.com",
+            "ads.huawei.com", "adx.huawei.com", "adservice.huawei.com",
+            "ad.xiaomi.com", "ad1.xiaomi.com",
+            "ad.vivo.com", "ads.vivo.com"
         };
         Collections.addAll(AD_DOMAINS, ads);
 
@@ -528,15 +553,45 @@ public class FilterEngine {
             domain.equals("paytm.com") || domain.endsWith(".paytm.com") ||
             domain.equals("phonepe.com") || domain.endsWith(".phonepe.com") ||
             domain.equals("npci.org.in") || domain.endsWith(".npci.org.in") ||
+            domain.equals("payu.in") || domain.endsWith(".payu.in") ||
+            domain.equals("cashfree.com") || domain.endsWith(".cashfree.com") ||
+            domain.equals("bhimupi.org.in") || domain.endsWith(".bhimupi.org.in") ||
+            domain.equals("visa.com") || domain.endsWith(".visa.com") ||
+            domain.equals("mastercard.com") || domain.endsWith(".mastercard.com") ||
             // Public Sector, Education & CDNs
             domain.endsWith(".gov.in") || domain.endsWith(".nic.in") ||
             domain.endsWith(".gov") || domain.endsWith(".edu") ||
             domain.equals("cloudflare.com") || domain.endsWith(".cloudflare.com") ||
-            domain.endsWith(".cloudfront.net") || domain.endsWith(".fastly.net") ||
-            domain.endsWith(".akamaized.net") || domain.endsWith(".akamaihd.net") ||
+            domain.equals("cloudflare.net") || domain.endsWith(".cloudflare.net") ||
+            domain.equals("cloudflareinsights.com") || domain.endsWith(".cloudflareinsights.com") ||
+            domain.endsWith(".cloudfront.net") || domain.endsWith(".fastly.net") || domain.endsWith(".fastlylb.net") ||
+            domain.endsWith(".akamaized.net") || domain.endsWith(".akamaihd.net") || domain.endsWith(".akamai.net") ||
+            domain.endsWith(".edgekey.net") || domain.endsWith(".edgesuite.net") ||
             domain.equals("cdn77.org") || domain.endsWith(".cdn77.org") ||
             domain.equals("edgecastcdn.net") || domain.endsWith(".edgecastcdn.net") ||
             domain.equals("azureedge.net") || domain.endsWith(".azureedge.net") ||
+            domain.equals("azure.com") || domain.endsWith(".azure.com") ||
+            domain.equals("azure.net") || domain.endsWith(".azure.net") ||
+            domain.equals("windows.net") || domain.endsWith(".windows.net") ||
+            domain.equals("msecnd.net") || domain.endsWith(".msecnd.net") ||
+            domain.equals("aws.amazon.com") || domain.endsWith(".aws.amazon.com") ||
+            domain.equals("irctc.co.in") || domain.endsWith(".irctc.co.in") ||
+            domain.equals("cricbuzz.com") || domain.endsWith(".cricbuzz.com") ||
+            domain.equals("espncricinfo.com") || domain.endsWith(".espncricinfo.com") ||
+            domain.equals("bookmyshow.com") || domain.endsWith(".bookmyshow.com") ||
+            domain.equals("makemytrip.com") || domain.endsWith(".makemytrip.com") ||
+            domain.equals("goibibo.com") || domain.endsWith(".goibibo.com") ||
+            domain.equals("yatra.com") || domain.endsWith(".yatra.com") ||
+            domain.equals("cleartrip.com") || domain.endsWith(".cleartrip.com") ||
+            domain.equals("redbus.in") || domain.endsWith(".redbus.in") ||
+            domain.equals("booking.com") || domain.endsWith(".booking.com") ||
+            domain.equals("airbnb.com") || domain.endsWith(".airbnb.com") ||
+            domain.equals("tripadvisor.com") || domain.endsWith(".tripadvisor.com") ||
+            domain.equals("expedia.com") || domain.endsWith(".expedia.com") ||
+            domain.equals("agoda.com") || domain.endsWith(".agoda.com") ||
+            domain.equals("uber.com") || domain.endsWith(".uber.com") ||
+            domain.equals("ola.cabs") || domain.endsWith(".ola.cabs") ||
+            domain.equals("lyft.com") || domain.endsWith(".lyft.com") ||
             domain.equals("digicert.com") || domain.endsWith(".digicert.com") ||
             domain.equals("letsencrypt.org") || domain.endsWith(".letsencrypt.org") ||
             // Global Web Libraries, CDNs & Web Assets (Guarantee all web CSS, JS & Fonts load)
@@ -768,6 +823,13 @@ public class FilterEngine {
             return new MatchResult(Decision.CLEAN, "Essential Service", "Whitelisted");
         }
 
+        // 3.5 DYNAMIC CLOUD THREAT SINKHOLE:
+        // Evaluates dynamically downloaded zero-day ad & malware signatures with Zero-Breakage Guarantee.
+        // Strictly exact-match only: A dynamic rule can NEVER sinkhole child or parent subdomains of a real website!
+        if (DYNAMIC_DOMAINS.contains(domain)) {
+            return new MatchResult(Decision.BLOCK_AD, "Global Threat Feed (Auto-Updated)", "Aegis_Dynamic_Cloud:" + domain);
+        }
+
         // 4. Suffix walk: sub.adservice.google.com -> adservice.google.com -> google.com
         current = domain;
         while (current.contains(".")) {
@@ -795,13 +857,6 @@ public class FilterEngine {
             if (blockCryptominers && CRYPTOMINER_DOMAINS.contains(current)) {
                 return new MatchResult(Decision.BLOCK_CRYPTOMINER, "In-Browser Cryptominer", "Aegis_CryptoMiner:" + current);
             }
-            if (DYNAMIC_DOMAINS.contains(current)) {
-                // Safeguard: Only block if exact domain match OR if current is a specific subdomain (contains at least 2 dots)
-                // This prevents dynamic rules from ever breaking an entire apex website!
-                if (domain.equals(current) || current.indexOf('.') != current.lastIndexOf('.')) {
-                    return new MatchResult(Decision.BLOCK_AD, "Global Threat Feed (Auto-Updated)", "Aegis_Dynamic_Cloud:" + current);
-                }
-            }
 
             int nextDot = current.indexOf('.');
             if (nextDot == -1) break;
@@ -816,9 +871,16 @@ public class FilterEngine {
             if (firstDot > 0 && firstDot != lastDot) {
                 String parent = domain.substring(firstDot + 1);
                 if (!SHARED_HOSTING_SUFFIXES.contains(parent)) {
-                    String firstLabel = domain.substring(0, firstDot);
-                    if (AD_SUBDOMAIN_LABELS.contains(firstLabel)) {
-                        return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
+                    // Universal Multi-Label Subdomain Inspection (e.g. us.ads.example.com -> checks "us", "ads")
+                    String[] labels = domain.split("\\.");
+                    int subCount = labels.length - 2;
+                    if (labels.length >= 3 && SHARED_HOSTING_SUFFIXES.contains(labels[labels.length - 2] + "." + labels[labels.length - 1])) {
+                        subCount = labels.length - 3;
+                    }
+                    for (int i = 0; i < subCount; i++) {
+                        if (AD_SUBDOMAIN_LABELS.contains(labels[i])) {
+                            return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
+                        }
                     }
                     if (domain.startsWith("adserver.") || domain.startsWith("adservers.") ||
                         domain.startsWith("adservice.") || domain.startsWith("adsystem.") ||

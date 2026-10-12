@@ -50,17 +50,15 @@ public class DynamicFilterManager {
 
     // 5 Hours = 5 * 60 * 60 * 1000 milliseconds
     public static final long UPDATE_INTERVAL_MS = 5 * 60 * 60 * 1000L;
-    private static final String CACHE_FILE_NAME = "aegis_dynamic_threat_cache.txt";
+    private static final String CACHE_FILE_NAME = "aegis_dynamic_threat_cache_v303.txt";
     private static final int MAX_DYNAMIC_RULES = 35000; // Optimal memory bounds for low-end hardware
 
     // Curated Global Threat Intelligence Feeds (Strictly validated to avoid false positives and site breakage)
     private static final String[] THREAT_FEED_URLS = new String[] {
         // Peter Lowe's gold standard curated adserver list (Zero false positives, strictly verified ad networks)
         "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext",
-        // HaGeZi Multi LIGHT DNS Blocklist (Targeted pure ad & tracker servers only, strictly vetted against top 1M)
-        "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/light.txt",
-        // AdGuard mobile adserver rules
-        "https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt"
+        // AdAway official mobile curated ad hosts
+        "https://adaway.org/hosts.txt"
     };
 
     private static final Set<String> GLOBAL_PROTECTED_ROOTS = new HashSet<>(java.util.Arrays.asList(
@@ -91,6 +89,55 @@ public class DynamicFilterManager {
             }
         }
         return false;
+    }
+
+    private static final Set<String> FUNCTIONAL_SUBDOMAIN_PREFIXES = new HashSet<>(java.util.Arrays.asList(
+        "www", "api", "apis", "cdn", "cdns", "asset", "assets", "static", "img", "imgs", "image", "images",
+        "media", "content", "auth", "login", "sso", "signin", "signup", "checkout", "pay", "payment",
+        "payments", "shop", "store", "app", "mobile", "portal", "cloud", "edge", "download", "downloads",
+        "secure", "mail", "email", "help", "support", "docs", "gateway", "connect", "status", "service",
+        "services", "my", "account", "accounts", "user", "users", "dashboard", "client", "clients",
+        "node", "srv", "server", "prod", "main", "stream", "video", "audio", "voice", "rtc", "web"
+    ));
+
+    /**
+     * Bulletproof Ingestion Validator:
+     * Guarantees that dynamically downloaded rules NEVER contain functional website assets,
+     * apex website domains, educational/government TLDs, or essential services.
+     */
+    public static boolean isSafeDynamicDomain(String domain) {
+        if (domain == null || domain.length() < 4) return false;
+        String d = domain.toLowerCase(Locale.US);
+        if (FilterEngine.isEssentialService(d) || isGlobalProtectedRoot(d)) {
+            return false;
+        }
+
+        // Reject critical public, government, educational & banking TLDs
+        if (d.endsWith(".edu") || d.endsWith(".gov") || d.endsWith(".mil") ||
+            d.endsWith(".gov.in") || d.endsWith(".nic.in") || d.endsWith(".ac.uk") ||
+            d.endsWith(".gov.uk") || d.endsWith(".bank")) {
+            return false;
+        }
+
+        // Functional Subdomain Shield: Reject functional website prefixes
+        int firstDot = d.indexOf('.');
+        if (firstDot > 0) {
+            String firstLabel = d.substring(0, firstDot);
+            if (FUNCTIONAL_SUBDOMAIN_PREFIXES.contains(firstLabel)) {
+                return false;
+            }
+        }
+
+        // Apex domain protection: Dynamic threat feeds must NOT block apex domains of public websites
+        int lastDot = d.lastIndexOf('.');
+        if (firstDot == lastDot) {
+            // Only 1 dot -> Apex domain (e.g. company.com). Only allowed if explicitly an ad/tracker network
+            if (!d.contains("ad") && !d.contains("track") && !d.contains("pixel") && !d.contains("banner") && !d.contains("popup")) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static final ExecutorService sExecutor = Executors.newSingleThreadExecutor();
@@ -312,7 +359,7 @@ public class DynamicFilterManager {
                 String domain = extractDomain(line);
                 if (domain != null && isValidDomain(domain)) {
                     // Whitelist safety guard: NEVER allow dynamic rules to sinkhole essential services or global protected websites
-                    if (!FilterEngine.isEssentialService(domain) && !isGlobalProtectedRoot(domain)) {
+                    if (isSafeDynamicDomain(domain)) {
                         domains.add(domain);
                         count++;
                     }
@@ -402,6 +449,14 @@ public class DynamicFilterManager {
      */
     private static int loadCachedRules(Context context) {
         try {
+            // Guarantee removal of legacy unvetted cache from previous versions
+            try {
+                File legacy = new File(context.getFilesDir(), "aegis_dynamic_threat_cache.txt");
+                if (legacy.exists()) {
+                    legacy.delete();
+                }
+            } catch (Throwable ignored) {}
+
             File file = new File(context.getFilesDir(), CACHE_FILE_NAME);
             if (!file.exists()) {
                 // Initialize default dynamic threat bootstrap set
@@ -415,7 +470,7 @@ public class DynamicFilterManager {
             Set<String> cached = new HashSet<>(4096);
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
-                if (!line.isEmpty() && !FilterEngine.isEssentialService(line) && !isGlobalProtectedRoot(line)) {
+                if (!line.isEmpty() && isSafeDynamicDomain(line)) {
                     cached.add(line);
                 }
             }
