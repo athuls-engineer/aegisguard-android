@@ -179,7 +179,8 @@ public class FilterEngine {
         "popup", "popups", "popunder", "popunders",
         "interstitial", "interstitials", "displayads", "nativeads",
         "pagead", "videoads", "servedby", "rewarded", "rewardedads",
-        "mobileads", "mobilead", "admob", "adapi", "adsapi", "adanalytics"
+        "mobileads", "mobilead", "admob", "adapi", "adsapi", "adanalytics",
+        "sponsored", "sponsoredads", "promoted", "promotedads", "adclick", "adclicks"
     ));
 
     private static final Set<String> SHARED_HOSTING_SUFFIXES = new HashSet<>(Arrays.asList(
@@ -257,6 +258,14 @@ public class FilterEngine {
             "kidoz.net", "sdk.kidoz.net", "adgeneration.jp", "yieldone.com", "microad.net", "cpmstar.com",
             "smartyads.com", "epom.com", "propeller-tracking.com", "adxprts.com", "yandexads.com",
             "adfox.yandex.ru", "bebi.com", "adzerk.net", "kevel.co", "mtgglobals.com",
+            // Sponsored Commerce, Retail Media & Native Sponsored Ad Platforms
+            "citrusad.com", "api.citrusad.com", "integration.citrusad.com",
+            "promoteiq.com", "api.promoteiq.com", "delivery.promoteiq.com",
+            "promoted.ai", "api.promoted.ai",
+            "adroll.com", "d.adroll.com", "s.adroll.com",
+            "skimlinks.com", "skimresources.com", "viglink.com", "redirectingat.com",
+            "narrativ.com", "shopstylecollective.com", "admitad.com", "awin1.com",
+            "tradetracker.com", "linksynergy.com", "click.linksynergy.com",
             // Web Banners, Header-Bidding Exchanges & Publisher Monetization
             "ezoic.net", "ezoic.com", "go.ezoic.net", "ezodn.com", "g.ezoic.net",
             "snigelweb.com", "adengine.snigelweb.com",
@@ -900,7 +909,9 @@ public class FilterEngine {
                         domain.startsWith("bannerads.") || domain.startsWith("inappads.") ||
                         domain.startsWith("static-ads.") || domain.startsWith("nativeads.") ||
                         domain.startsWith("displayads.") || domain.startsWith("popup.") ||
-                        domain.startsWith("popunder.") || domain.startsWith("servedby.")) {
+                        domain.startsWith("popunder.") || domain.startsWith("servedby.") ||
+                        domain.startsWith("sponsored.") || domain.startsWith("promoted.") ||
+                        domain.startsWith("adclick.")) {
                         return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
                     }
                 }

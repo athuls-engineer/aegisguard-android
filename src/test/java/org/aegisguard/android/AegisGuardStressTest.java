@@ -290,7 +290,8 @@ public class AegisGuardStressTest {
             "highcpmgate.com", "monetag.com", "admaven.com", "ezoic.net", "mediavine.com", "snigelweb.com", "freestar.io",
             "appsflyer.com", "branch.io", "kochava.com", "adjust.com", "mixpanel.com",
             "ads.youtube.com", "ad.youtube.com", "imasdk.googleapis.com", "youtubeads.googleapis.com",
-            "ad-delivery.youtube.com", "eligibility-panelresearch.googlevideo.com", "video-stats.l.google.com"
+            "ad-delivery.youtube.com", "eligibility-panelresearch.googlevideo.com", "video-stats.l.google.com",
+            "citrusad.com", "promoteiq.com", "promoted.ai", "adroll.com", "skimlinks.com", "viglink.com"
         };
 
         // Malware & Cryptominer test vectors
@@ -304,7 +305,8 @@ public class AegisGuardStressTest {
         // Subdomain ad heuristics
         String[] heuristicPrefixes = new String[] {
             "ad.", "ads.", "adx.", "appads.", "app-ads.", "adtrack.", "adtracker.",
-            "banner.", "banners.", "bannerads.", "inappads.", "popup.", "popunder."
+            "banner.", "banners.", "bannerads.", "inappads.", "popup.", "popunder.",
+            "sponsored.", "promoted.", "adclick."
         };
 
         // Ensure clean state before test run
