@@ -591,33 +591,36 @@ public class AegisVpnService extends VpnService implements Runnable {
                             final byte[] packetCopy = Arrays.copyOf(packetBuffer, length);
                             final int origLen = length;
 
-                            if (dnsWorkerPool != null && !dnsWorkerPool.isShutdown()) {
-                                dnsWorkerPool.execute(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        try {
-                                            byte[] rawDnsResponse = dnsForwarder.resolve(packetCopy, origLen, query);
+                            final ExecutorService pool = dnsWorkerPool;
+                            if (pool != null && !pool.isShutdown()) {
+                                try {
+                                    pool.execute(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            try {
+                                                byte[] rawDnsResponse = dnsForwarder.resolve(packetCopy, origLen, query);
 
-                                            if (rawDnsResponse != null) {
-                                                byte[] responsePacket = DnsPacketParser.buildTunResponsePacket(query, rawDnsResponse);
-                                                try {
-                                                    synchronized (outLock) {
-                                                        out.write(responsePacket);
-                                                    }
-                                                } catch (IOException ignored) {}
+                                                if (rawDnsResponse != null) {
+                                                    byte[] responsePacket = DnsPacketParser.buildTunResponsePacket(query, rawDnsResponse);
+                                                    try {
+                                                        synchronized (outLock) {
+                                                            out.write(responsePacket);
+                                                        }
+                                                    } catch (IOException ignored) {}
+                                                }
+
+                                                long elapsedUs = (System.nanoTime() - startTime) / 1000;
+                                                String latencyStr = (elapsedUs / 1000.0) + "ms";
+
+                                                if (sTrafficListener != null) {
+                                                    sTrafficListener.onTrafficEvent(query.qName, "Clean Traffic", false, latencyStr);
+                                                }
+                                            } catch (Throwable t) {
+                                                Log.w(TAG, "DNS resolution task exception: " + t.getMessage());
                                             }
-
-                                            long elapsedUs = (System.nanoTime() - startTime) / 1000;
-                                            String latencyStr = (elapsedUs / 1000.0) + "ms";
-
-                                            if (sTrafficListener != null) {
-                                                sTrafficListener.onTrafficEvent(query.qName, "Clean Traffic", false, latencyStr);
-                                            }
-                                        } catch (Throwable t) {
-                                            Log.w(TAG, "DNS resolution task exception: " + t.getMessage());
                                         }
-                                    }
-                                });
+                                    });
+                                } catch (Throwable ignored) {}
                             }
                         }
 

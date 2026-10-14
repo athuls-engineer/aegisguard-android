@@ -508,7 +508,7 @@ public class DynamicFilterManager {
             "track.adform.net", "ad.yieldmo.com", "match.adsrvr.org",
             "pixel.advertising.com", "dpm.demdex.net", "match.sharethrough.com",
             "ad.turn.com", "ups.analytics.yahoo.com", "fls.doubleclick.net",
-            "app-measurement.com", "firebaseinstallations.googleapis.com",
+            "app-measurement.com",
             "api.branch.io", "bnc.lt", "sdk.iad-03.braze.com"
         };
         for (String b : bootstrap) {

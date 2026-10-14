@@ -532,10 +532,9 @@ public class DnsForwarder {
                     "cloudflare.com"
                 };
 
-                DatagramSocket prewarmSocket = null;
+                DatagramSocket prewarmSocket = createProtectedSocket();
+                if (prewarmSocket == null) return;
                 try {
-                    prewarmSocket = new DatagramSocket();
-                    vpnService.protect(prewarmSocket);
                     prewarmSocket.setSoTimeout(300);
                     byte[] recvBuf = new byte[4096];
                     DatagramPacket recvPack = new DatagramPacket(recvBuf, recvBuf.length);

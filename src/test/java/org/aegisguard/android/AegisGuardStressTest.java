@@ -277,7 +277,8 @@ public class AegisGuardStressTest {
             "cdnjs.cloudflare.com", "jsdelivr.net", "unpkg.com", "bit.ly", "wikipedia.org",
             "bbc.com", "vimeo.com", "booking.com", "coursera.org", "docker.com",
             "captive.apple.com", "www.msftconnecttest.com", "connectivitycheck.gstatic.com",
-            "accounts.google.com", "appleid.apple.com", "login.microsoftonline.com", "auth0.com", "challenges.cloudflare.com"
+            "accounts.google.com", "appleid.apple.com", "login.microsoftonline.com", "auth0.com", "challenges.cloudflare.com",
+            "v16-webapp.byteoversea.com"
         };
 
         // Ad networks that MUST ALWAYS be blocked
@@ -292,7 +293,8 @@ public class AegisGuardStressTest {
             "ads.youtube.com", "ad.youtube.com", "imasdk.googleapis.com", "youtubeads.googleapis.com",
             "ad-delivery.youtube.com", "eligibility-panelresearch.googlevideo.com", "video-stats.l.google.com",
             "citrusad.com", "promoteiq.com", "promoted.ai", "adroll.com", "skimlinks.com", "viglink.com",
-            "googletagservices.com", "raptive.com", "sonobi.com"
+            "googletagservices.com", "raptive.com", "sonobi.com",
+            "2mdn.net", "serving-sys.com", "flashtalking.com", "adswizz.com", "galaksion.com"
         };
 
         // Malware & Cryptominer test vectors
@@ -307,7 +309,8 @@ public class AegisGuardStressTest {
         String[] heuristicPrefixes = new String[] {
             "ad.", "ads.", "adx.", "appads.", "app-ads.", "adtrack.", "adtracker.",
             "banner.", "banners.", "bannerads.", "inappads.", "popup.", "popunder.",
-            "sponsored.", "promoted.", "adclick.", "ads1.", "adserver2.", "banner-cdn."
+            "sponsored.", "promoted.", "adclick.", "ads1.", "adserver2.", "banner-cdn.",
+            "sponsor.", "promo.", "sponsor-cdn."
         };
 
         // Ensure clean state before test run

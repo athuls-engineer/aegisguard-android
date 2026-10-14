@@ -180,7 +180,9 @@ public class FilterEngine {
         "interstitial", "interstitials", "displayads", "nativeads",
         "pagead", "videoads", "servedby", "rewarded", "rewardedads",
         "mobileads", "mobilead", "admob", "adapi", "adsapi", "adanalytics",
-        "sponsored", "sponsoredads", "promoted", "promotedads", "adclick", "adclicks"
+        "sponsor", "sponsors", "sponsored", "sponsoredads",
+        "promo", "promos", "promoted", "promotedads", "promotion", "promotions",
+        "adclick", "adclicks"
     ));
 
     private static final Set<String> SHARED_HOSTING_SUFFIXES = new HashSet<>(Arrays.asList(
@@ -197,11 +199,11 @@ public class FilterEngine {
         String[] ads = new String[] {
             // Google Ad Ecosystem & In-App Video SDKs
             "googlesyndication.com", "tpc.googlesyndication.com", "afs.googlesyndication.com",
-            "doubleclick.net", "googleads.g.doubleclick.net", "pagead2.googlesyndication.com",
+            "doubleclick.net", "doubleclick.com", "googleads.g.doubleclick.net", "pagead2.googlesyndication.com",
             "adservice.google.com", "admob.com", "media.admob.com", "pubads.g.doubleclick.net",
             "securepubads.g.doubleclick.net", "pagead2.googleadservices.com", "googleadservices.com",
             "ads.google.com", "adsyndication.com", "imasdk.googleapis.com", "partnerad.l.google.com",
-            "googletagservices.com", "partner.googleadservices.com",
+            "googletagservices.com", "partner.googleadservices.com", "2mdn.net", "s0.2mdn.net", "invitemedia.com",
             "adclick.g.doubleclick.net", "ade.googlesyndication.com",
             "cm.g.doubleclick.net", "stats.g.doubleclick.net", "adtrafficquality.google",
             "ep1.adtrafficquality.google", "admob.google.com", "googlemobileads.google.com",
@@ -229,12 +231,13 @@ public class FilterEngine {
             "chartboost.com", "live.chartboost.com", "da.chartboost.com",
             "mintegral.com", "mintegral.net", "pg-cdn.mintegral.com", "hb.mintegral.com",
             "setting.mintegral.com", "rayjump.com", "cdn-adn.rayjump.com", "adn.rayjump.com", "mobvista.com",
+            "mbridge.com", "mbridge.net",
             "tapjoy.com", "tapjoyads.com", "rpc.tapjoy.com", "ws.tapjoyads.com",
             "flurry.com", "startapp.com", "startappexchange.com", "startappservice.com", "start.io",
             "pangle.io", "pangolin-sdk-toutiao.com", "pangolin-sdk-toutiao1.com",
             "pangolin-sdk-toutiao-b.com", "pglstatp-toutiao.com", "ad.toutiao.com",
             "toblog.ctobsnssdk.com", "mon.musical.ly", "mon.byteoversea.com", "ib.snssdk.com",
-            "isnssdk.com", "sf16-fe-tos-sg.byteoversea.com",
+            "isnssdk.com",
             "ads.tiktok.com", "analytics.tiktok.com", "ads-api.tiktok.com",
             "fyber.com", "inner-active.mobi", "adcolony.com", "digitalturbine.com", "dt.com",
             "wd.adcolony.com", "events3.adcolony.com",
@@ -283,6 +286,16 @@ public class FilterEngine {
             "playwire.com", "cdn.intergi.com", "intergi.com",
             "nitropay.com", "s.nitropay.com", "buysellads.net", "srv.buysellads.com",
             "servedby-buysellads.com", "adx1.com", "adexc.net", "directrev.com",
+            "serving-sys.com", "bs.serving-sys.com", "sizmek.com",
+            "flashtalking.com", "cdn.flashtalking.com",
+            "adition.com", "yieldmanager.com", "atdmt.com", "adtechus.com", "adtech.de",
+            "zemanta.com", "stackadapt.com", "adtarget.me", "adtarget.net", "adblade.com",
+            "bidr.io", "adbutler.com", "sparklit.com", "admarketplace.com",
+            "admixer.co.kr", "admixer.com", "adsupply.com",
+            "tappx.com", "yieldbird.com", "leadboltads.net", "leadbolt.net",
+            // Injected Audio & Streaming Ad Networks
+            "adswizz.com", "tritondigital.com", "targetspot.com", "instreamatic.com",
+            "audiomackads.com",
             // Video Streaming In-Built Ad Delivery & Client SDKs
             "ads.twitch.tv", "ad.twitch.tv",
             "ads.spotify.com", "ads-fa.spotify.com", "adstudio.spotify.com",
@@ -335,7 +348,9 @@ public class FilterEngine {
             "clksite.com", "trafficstars.com", "adtilt.com", "adtng.com", "adxpansion.com",
             "ero-advertising.com", "clarium.io", "clickadilla.com", "da-ads.com",
             "onclickalgo.com", "onclickperformance.com", "pushengage.com", "pushassist.com",
-            "subscribers.com", "webpushr.com"
+            "subscribers.com", "webpushr.com",
+            "popmyads.com", "popunder.net", "popvertising.com", "galaksion.com", "rollerads.com",
+            "mondiad.com", "chitika.com"
         };
         Collections.addAll(POPUP_DOMAINS, popups);
 
@@ -364,7 +379,9 @@ public class FilterEngine {
             // Social Media Cross-App Tracking Pixels & Telemetry
             "pixel.facebook.com", "an.facebook.com", "tr.snapchat.com",
             "events.reddit.com", "alb.reddit.com", "ads.reddit.com", "e.reddit.com",
-            "analytics.tiktok.com", "ads.tiktok.com", "byteoversea.com", "ibytedtos.com", "ads-twitter.com",
+            "analytics.tiktok.com", "ads.tiktok.com", "ads-twitter.com",
+            "log.byteoversea.com", "mon.byteoversea.com", "analytics.byteoversea.com",
+            "tobapplog.byteoversea.com", "rtlog.byteoversea.com", "ad-asset.ibytedtos.com",
             "ads.twitter.com",
             "ads.pinterest.com", "ads.linkedin.com",
             // In-Built Video Streaming & Mobile Surveillance Beacons
@@ -922,6 +939,8 @@ public class FilterEngine {
                             label.startsWith("videoad") || label.startsWith("video-ad") ||
                             label.startsWith("nativead") || label.startsWith("native-ad") ||
                             label.startsWith("sponsoredad") || label.startsWith("promotedad") ||
+                            label.startsWith("sponsor-") || label.startsWith("sponsored-") ||
+                            label.startsWith("promo-") || label.startsWith("promoted-") ||
                             label.startsWith("popunder")) {
                             return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
                         }

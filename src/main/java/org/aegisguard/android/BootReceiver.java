@@ -51,8 +51,11 @@ public class BootReceiver extends BroadcastReceiver {
                 }
             }
 
-            // Ensure 5-Hour Dynamic Filter Auto-Update is active on device startup
-            DynamicFilterManager.schedulePeriodicUpdate(context);
+            // Ensure 5-Hour Dynamic Filter Auto-Update is active on device startup ONLY IF enabled by user
+            boolean autoUpdateFilters = settingsPrefs.getBoolean("auto_update_threat_filters", false);
+            if (autoUpdateFilters) {
+                DynamicFilterManager.schedulePeriodicUpdate(context);
+            }
         }
     }
 }
