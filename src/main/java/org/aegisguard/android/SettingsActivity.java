@@ -7,6 +7,11 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.net.ConnectivityManager;
+import android.net.LinkProperties;
+import android.net.Network;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -21,7 +26,13 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -43,12 +54,15 @@ public class SettingsActivity extends Activity {
     public static final String KEY_BLOCK_MALWARE = "block_malware";
     public static final String KEY_BLOCK_CRYPTOMINERS = "block_cryptominers";
     public static final String KEY_AUTO_START = "auto_start_on_boot";
+    public static final String KEY_DISALLOWED_APPS = "disallowed_apps_set";
 
     private FrameLayout btnBack;
     private TextView btnResetStats;
     private TextView btnFlushCache;
     private LinearLayout cardDnsProvider;
     private TextView tvCurrentDnsProvider;
+    private LinearLayout cardDnsBenchmark;
+    private TextView tvDnsBenchmarkStatus;
 
     private Switch swBlockAds;
     private Switch swBlockPopups;
@@ -63,6 +77,9 @@ public class SettingsActivity extends Activity {
 
     private LinearLayout cardSnoozeDefense;
     private TextView tvSnoozeStatus;
+
+    private LinearLayout cardBypassApps;
+    private TextView tvBypassAppsCount;
 
     private Switch swAutoStartOnBoot;
     private LinearLayout cardBatteryOptimization;
@@ -112,6 +129,8 @@ public class SettingsActivity extends Activity {
         btnFlushCache = findViewById(R.id.btnFlushCache);
         cardDnsProvider = findViewById(R.id.cardDnsProvider);
         tvCurrentDnsProvider = findViewById(R.id.tvCurrentDnsProvider);
+        cardDnsBenchmark = findViewById(R.id.cardDnsBenchmark);
+        tvDnsBenchmarkStatus = findViewById(R.id.tvDnsBenchmarkStatus);
 
         swBlockAds = findViewById(R.id.swBlockAds);
         swBlockPopups = findViewById(R.id.swBlockPopups);
@@ -126,6 +145,9 @@ public class SettingsActivity extends Activity {
 
         cardSnoozeDefense = findViewById(R.id.cardSnoozeDefense);
         tvSnoozeStatus = findViewById(R.id.tvSnoozeStatus);
+
+        cardBypassApps = findViewById(R.id.cardBypassApps);
+        tvBypassAppsCount = findViewById(R.id.tvBypassAppsCount);
 
         swAutoStartOnBoot = findViewById(R.id.swAutoStartOnBoot);
         cardBatteryOptimization = findViewById(R.id.cardBatteryOptimization);
@@ -158,6 +180,7 @@ public class SettingsActivity extends Activity {
         updateThreatIntelligenceDisplay();
         updateCustomRulesDisplay();
         updateSnoozeDisplay();
+        updateBypassAppsDisplay();
     }
 
     private void updateThreatIntelligenceDisplay() {
@@ -176,6 +199,18 @@ public class SettingsActivity extends Activity {
             int whiteCount = FilterEngine.CUSTOM_WHITELIST.size();
             int blackCount = FilterEngine.CUSTOM_BLACKLIST.size();
             tvCustomRulesCount.setText(String.format(Locale.US, "%d Whitelisted • %d Custom Sinkholed", whiteCount, blackCount));
+        }
+    }
+
+    private void updateBypassAppsDisplay() {
+        if (tvBypassAppsCount != null && prefs != null) {
+            Set<String> set = prefs.getStringSet(KEY_DISALLOWED_APPS, null);
+            int count = (set != null) ? set.size() : 0;
+            if (count == 0) {
+                tvBypassAppsCount.setText("0 Apps Bypassed • Tap to configure");
+            } else {
+                tvBypassAppsCount.setText(count + " Apps Bypassed • Tap to configure");
+            }
         }
     }
 
@@ -224,6 +259,7 @@ public class SettingsActivity extends Activity {
         updateThreatIntelligenceDisplay();
         updateCustomRulesDisplay();
         updateSnoozeDisplay();
+        updateBypassAppsDisplay();
     }
 
     private String getProviderDisplayName(String key) {
@@ -440,6 +476,24 @@ public class SettingsActivity extends Activity {
                 }
             });
         }
+
+        if (cardDnsBenchmark != null) {
+            cardDnsBenchmark.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    runDnsBenchmark();
+                }
+            });
+        }
+
+        if (cardBypassApps != null) {
+            cardBypassApps.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showBypassAppsDialog();
+                }
+            });
+        }
     }
 
     private void showCustomRulesManagerDialog() {
@@ -500,10 +554,12 @@ public class SettingsActivity extends Activity {
 
                     if (isWhitelist) {
                         FilterEngine.addCustomWhitelist(SettingsActivity.this, domain);
-                        Toast.makeText(SettingsActivity.this, "Added to Whitelist: " + domain, Toast.LENGTH_LONG).show();
+                        DnsForwarder.clearCacheGlobal();
+                        Toast.makeText(SettingsActivity.this, "Added to Whitelist: " + domain + " (Cache Cleared)", Toast.LENGTH_LONG).show();
                     } else {
                         FilterEngine.addCustomBlacklist(SettingsActivity.this, domain);
-                        Toast.makeText(SettingsActivity.this, "Added to Blacklist: " + domain, Toast.LENGTH_LONG).show();
+                        DnsForwarder.clearCacheGlobal();
+                        Toast.makeText(SettingsActivity.this, "Added to Blacklist: " + domain + " (Cache Cleared)", Toast.LENGTH_LONG).show();
                     }
                     updateCustomRulesDisplay();
                 }
@@ -527,8 +583,9 @@ public class SettingsActivity extends Activity {
                 public void onClick(DialogInterface dialog, int which) {
                     String domain = items[which];
                     FilterEngine.removeCustomRule(SettingsActivity.this, domain);
+                    DnsForwarder.clearCacheGlobal();
                     updateCustomRulesDisplay();
-                    Toast.makeText(SettingsActivity.this, "Removed: " + domain, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(SettingsActivity.this, "Removed: " + domain + " (Cache Cleared)", Toast.LENGTH_SHORT).show();
                 }
             })
             .setNegativeButton("Close", null)
@@ -643,6 +700,238 @@ public class SettingsActivity extends Activity {
                         Toast.makeText(SettingsActivity.this, "Upstream DNS set to custom IP: " + ip, Toast.LENGTH_LONG).show();
                     } else {
                         Toast.makeText(SettingsActivity.this, "Invalid IPv4 address format", Toast.LENGTH_LONG).show();
+                    }
+                }
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+
+    private void runDnsBenchmark() {
+        if (tvDnsBenchmarkStatus != null) {
+            tvDnsBenchmarkStatus.setText("Pinging Cloudflare, Google, Quad9 & Gateway...");
+            tvDnsBenchmarkStatus.setTextColor(getResources().getColor(R.color.accent_amber));
+        }
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final List<String> serverNames = new ArrayList<>();
+                final List<String> serverIps = new ArrayList<>();
+
+                ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                if (cm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    try {
+                        Network active = cm.getActiveNetwork();
+                        if (active != null) {
+                            LinkProperties lp = cm.getLinkProperties(active);
+                            if (lp != null && lp.getDnsServers() != null && !lp.getDnsServers().isEmpty()) {
+                                InetAddress gw = lp.getDnsServers().get(0);
+                                if (gw != null && !gw.isLoopbackAddress()) {
+                                    serverNames.add("Physical Gateway (" + gw.getHostAddress() + ")");
+                                    serverIps.add(gw.getHostAddress());
+                                }
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                }
+
+                serverNames.add("Cloudflare Anycast (1.1.1.1)");
+                serverIps.add("1.1.1.1");
+                serverNames.add("Google Public DNS (8.8.8.8)");
+                serverIps.add("8.8.8.8");
+                serverNames.add("Quad9 Swiss Anycast (9.9.9.9)");
+                serverIps.add("9.9.9.9");
+
+                final StringBuilder results = new StringBuilder();
+                String fastestName = "Cloudflare";
+                long lowestPing = Long.MAX_VALUE;
+
+                // Standard RFC 1035 A-record DNS query for google.com
+                byte[] query = new byte[] {
+                    (byte)0x12, (byte)0x34, // txId
+                    0x01, 0x00,             // standard query, RD=1
+                    0x00, 0x01,             // QDCOUNT=1
+                    0x00, 0x00, 0x00, 0x00, // AN, NS, AR = 0
+                    0x06, 'g', 'o', 'o', 'g', 'l', 'e',
+                    0x03, 'c', 'o', 'm', 0x00,
+                    0x00, 0x01,             // TYPE A
+                    0x00, 0x01              // CLASS IN
+                };
+
+                for (int i = 0; i < serverIps.size(); i++) {
+                    String name = serverNames.get(i);
+                    String ip = serverIps.get(i);
+                    long latency = -1;
+                    DatagramSocket s = null;
+                    try {
+                        s = new DatagramSocket();
+                        s.setSoTimeout(1200);
+                        InetAddress addr = InetAddress.getByName(ip);
+                        DatagramPacket pack = new DatagramPacket(query, query.length, addr, 53);
+                        long t0 = System.currentTimeMillis();
+                        s.send(pack);
+                        byte[] recv = new byte[512];
+                        DatagramPacket resp = new DatagramPacket(recv, recv.length);
+                        s.receive(resp);
+                        latency = System.currentTimeMillis() - t0;
+                    } catch (Throwable t) {
+                        latency = -1;
+                    } finally {
+                        if (s != null) {
+                            try { s.close(); } catch (Exception ignored) {}
+                        }
+                    }
+
+                    if (latency >= 0) {
+                        String tier = (latency < 25) ? "🟢 Ultra-Fast" : (latency < 60) ? "🟡 Good" : "🟠 High Latency";
+                        results.append("• ").append(name).append(": ").append(latency).append(" ms (").append(tier).append(")\n");
+                        if (latency < lowestPing) {
+                            lowestPing = latency;
+                            fastestName = name;
+                        }
+                    } else {
+                        results.append("• ").append(name).append(": Timed out / Blocked by carrier\n");
+                    }
+                }
+
+                final String finalFastest = fastestName;
+                final long finalLowest = lowestPing;
+                final String finalMsg = results.toString();
+
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (tvDnsBenchmarkStatus != null) {
+                            if (finalLowest < Long.MAX_VALUE) {
+                                tvDnsBenchmarkStatus.setText("Fastest: " + finalFastest + " (" + finalLowest + "ms)");
+                                tvDnsBenchmarkStatus.setTextColor(getResources().getColor(R.color.accent_emerald));
+                            } else {
+                                tvDnsBenchmarkStatus.setText("Benchmark complete • Tap to re-test");
+                                tvDnsBenchmarkStatus.setTextColor(getResources().getColor(R.color.text_secondary));
+                            }
+                        }
+
+                        new AlertDialog.Builder(SettingsActivity.this)
+                            .setTitle("DNS Latency Benchmark")
+                            .setMessage("Live response times to upstream resolvers:\n\n" + finalMsg + 
+                                "\nEngine Strategy:\n" +
+                                (finalLowest < Long.MAX_VALUE ? 
+                                    "Your fastest upstream resolver is " + finalFastest + " (" + finalLowest + "ms).\n\nAegis Turbo Racing races your local gateway and Anycast resolvers in parallel for instant 0ms responses." :
+                                    "No response received. Check internet connection or carrier firewall."))
+                            .setPositiveButton("OK", null)
+                            .show();
+                    }
+                });
+            }
+        }).start();
+    }
+
+    private static class AppInfoItem {
+        final String packageName;
+        final String label;
+        boolean selected;
+        AppInfoItem(String pkg, String label, boolean selected) {
+            this.packageName = pkg;
+            this.label = label;
+            this.selected = selected;
+        }
+    }
+
+    private void showBypassAppsDialog() {
+        Toast.makeText(this, "Scanning installed applications...", Toast.LENGTH_SHORT).show();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final PackageManager pm = getPackageManager();
+                Intent mainIntent = new Intent(Intent.ACTION_MAIN, null);
+                mainIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+                List<ResolveInfo> resolveInfos = pm.queryIntentActivities(mainIntent, 0);
+
+                final List<AppInfoItem> appList = new ArrayList<>();
+                Set<String> currentDisallowed = prefs.getStringSet(KEY_DISALLOWED_APPS, null);
+                if (currentDisallowed == null) currentDisallowed = new HashSet<>();
+
+                String myPkg = getPackageName();
+                Set<String> seen = new HashSet<>();
+                for (ResolveInfo ri : resolveInfos) {
+                    if (ri.activityInfo != null && ri.activityInfo.packageName != null) {
+                        String pkg = ri.activityInfo.packageName;
+                        if (pkg.equals(myPkg) || seen.contains(pkg)) continue;
+                        seen.add(pkg);
+                        String label = ri.loadLabel(pm).toString();
+                        appList.add(new AppInfoItem(pkg, label, currentDisallowed.contains(pkg)));
+                    }
+                }
+
+                Collections.sort(appList, new Comparator<AppInfoItem>() {
+                    @Override
+                    public int compare(AppInfoItem o1, AppInfoItem o2) {
+                        return o1.label.compareToIgnoreCase(o2.label);
+                    }
+                });
+
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        displayBypassAppChooser(appList);
+                    }
+                });
+            }
+        }).start();
+    }
+
+    private void displayBypassAppChooser(final List<AppInfoItem> appList) {
+        if (appList.isEmpty()) {
+            Toast.makeText(this, "No launchable applications found", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        final String[] labels = new String[appList.size()];
+        final boolean[] checked = new boolean[appList.size()];
+        for (int i = 0; i < appList.size(); i++) {
+            AppInfoItem item = appList.get(i);
+            labels[i] = item.label + "\n" + item.packageName;
+            checked[i] = item.selected;
+        }
+
+        new AlertDialog.Builder(SettingsActivity.this)
+            .setTitle("App Bypass / Split Tunneling")
+            .setMultiChoiceItems(labels, checked, new DialogInterface.OnMultiChoiceClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which, boolean isChecked) {
+                    checked[which] = isChecked;
+                }
+            })
+            .setPositiveButton("Save & Apply", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    Set<String> newDisallowed = new HashSet<>();
+                    for (int i = 0; i < appList.size(); i++) {
+                        if (checked[i]) {
+                            newDisallowed.add(appList.get(i).packageName);
+                        }
+                    }
+                    prefs.edit().putStringSet(KEY_DISALLOWED_APPS, newDisallowed).apply();
+                    updateBypassAppsDisplay();
+
+                    if (AegisVpnService.isRunning.get()) {
+                        new AlertDialog.Builder(SettingsActivity.this)
+                            .setTitle("Reconnect Required")
+                            .setMessage("Bypass list updated (" + newDisallowed.size() + " apps). Reconnect AegisGuard now to apply split tunneling immediately?")
+                            .setPositiveButton("Reconnect Now", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface d, int w) {
+                                    Intent reconnectIntent = new Intent(SettingsActivity.this, AegisVpnService.class);
+                                    reconnectIntent.setAction(AegisVpnService.ACTION_RECONNECT);
+                                    startService(reconnectIntent);
+                                    Toast.makeText(SettingsActivity.this, "AegisGuard Reconnected with updated Split Tunneling", Toast.LENGTH_SHORT).show();
+                                }
+                            })
+                            .setNegativeButton("Later", null)
+                            .show();
+                    } else {
+                        Toast.makeText(SettingsActivity.this, "Bypass list updated (" + newDisallowed.size() + " apps)", Toast.LENGTH_SHORT).show();
                     }
                 }
             })

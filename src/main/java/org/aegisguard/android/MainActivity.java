@@ -884,6 +884,34 @@ public class MainActivity extends Activity implements AegisVpnService.TrafficLis
                 Toast.makeText(MainActivity.this, "Traffic logs cleared", Toast.LENGTH_SHORT).show();
             }
         });
+        builder.setNegativeButton("Export / Copy", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                List<QueryLogEntry> snapshot;
+                synchronized (detailedLogs) {
+                    snapshot = new ArrayList<>(detailedLogs);
+                }
+                if (snapshot.isEmpty()) {
+                    Toast.makeText(MainActivity.this, "No query logs to export", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                StringBuilder sb = new StringBuilder();
+                sb.append("AegisGuard Live Traffic Inspector Export\n");
+                sb.append("Total Logged Queries: ").append(snapshot.size()).append("\n");
+                sb.append("==================================================\n");
+                for (QueryLogEntry e : snapshot) {
+                    sb.append(e.blocked ? "[SINKHOLED] " : "[PASSED]    ")
+                      .append(e.domain)
+                      .append(" | ").append(e.category)
+                      .append(" | ").append(e.latency).append("\n");
+                }
+                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                if (cm != null) {
+                    cm.setPrimaryClip(ClipData.newPlainText("AegisGuard Traffic Log", sb.toString()));
+                    Toast.makeText(MainActivity.this, "Copied " + snapshot.size() + " query logs to clipboard", Toast.LENGTH_LONG).show();
+                }
+            }
+        });
         builder.show();
     }
 
@@ -903,10 +931,12 @@ public class MainActivity extends Activity implements AegisVpnService.TrafficLis
                 public void onClick(DialogInterface dialog, int which) {
                     if (which == 0) {
                         FilterEngine.addCustomWhitelist(MainActivity.this, domain);
-                        Toast.makeText(MainActivity.this, "Added to Whitelist: " + domain, Toast.LENGTH_LONG).show();
+                        DnsForwarder.clearCacheGlobal();
+                        Toast.makeText(MainActivity.this, "Added to Whitelist: " + domain + " (Cache Cleared)", Toast.LENGTH_LONG).show();
                     } else if (which == 1) {
                         FilterEngine.addCustomBlacklist(MainActivity.this, domain);
-                        Toast.makeText(MainActivity.this, "Added to Blacklist: " + domain, Toast.LENGTH_LONG).show();
+                        DnsForwarder.clearCacheGlobal();
+                        Toast.makeText(MainActivity.this, "Added to Blacklist: " + domain + " (Cache Cleared)", Toast.LENGTH_LONG).show();
                     } else if (which == 2) {
                         ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                         if (cm != null) {

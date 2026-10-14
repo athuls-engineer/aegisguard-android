@@ -55,6 +55,7 @@ public class AegisVpnService extends VpnService implements Runnable {
     public static final String ACTION_STOP = "org.aegisguard.android.STOP";
     public static final String ACTION_PAUSE = "org.aegisguard.android.PAUSE";
     public static final String ACTION_RESUME = "org.aegisguard.android.RESUME";
+    public static final String ACTION_RECONNECT = "org.aegisguard.android.RECONNECT";
     public static final String EXTRA_PAUSE_DURATION_MS = "pause_duration_ms";
 
     public static volatile long pauseUntilTimestamp = 0;
@@ -243,6 +244,18 @@ public class AegisVpnService extends VpnService implements Runnable {
                 maybeUpdateNotification();
                 notifyStateChanged(isRunning.get());
                 updateQuickSettingsTile(this);
+                return START_STICKY;
+            } else if (ACTION_RECONNECT.equals(action)) {
+                if (isRunning.get()) {
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            stopVpn();
+                            try { Thread.sleep(300); } catch (InterruptedException ignored) {}
+                            startVpn();
+                        }
+                    }, "AegisVpnReconnect").start();
+                }
                 return START_STICKY;
             }
         }
@@ -481,6 +494,27 @@ public class AegisVpnService extends VpnService implements Runnable {
                         } catch (Throwable t) {
                             Log.w(TAG, "Could not add disallowed app " + appPkg + ": " + t.getMessage());
                         }
+                    }
+
+                    // 6. User Custom App Bypass / Split Tunneling:
+                    // Allows user-specified apps (banking apps, corporate VPNs, games, etc.)
+                    // to completely bypass AegisGuard and route directly over physical Wi-Fi/LTE.
+                    try {
+                        SharedPreferences sp = getSharedPreferences("aegis_settings_prefs", Context.MODE_PRIVATE);
+                        java.util.Set<String> customDisallowed = sp.getStringSet("disallowed_apps_set", null);
+                        if (customDisallowed != null && !customDisallowed.isEmpty()) {
+                            for (String appPkg : customDisallowed) {
+                                try {
+                                    builder.addDisallowedApplication(appPkg);
+                                    Log.i(TAG, "User Split Tunnel Bypass active for: " + appPkg);
+                                } catch (PackageManager.NameNotFoundException ignored) {
+                                } catch (Throwable t) {
+                                    Log.w(TAG, "Could not add user disallowed app " + appPkg + ": " + t.getMessage());
+                                }
+                            }
+                        }
+                    } catch (Throwable t) {
+                        Log.w(TAG, "Error applying custom disallowed apps: " + t.getMessage());
                     }
 
                     vpnInterface = builder.establish();

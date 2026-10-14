@@ -237,6 +237,55 @@
                 android:contentDescription="Select" />
         </LinearLayout>
 
+        <!-- DNS Latency Benchmark Card -->
+        <LinearLayout
+            android:id="@+id/cardDnsBenchmark"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_card_clickable"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="16dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginBottom="20dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="DNS Latency Benchmark"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvDnsBenchmarkStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="Ping Cloudflare, Google, Quad9 &amp; Gateway"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_pill_standby"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"
+                android:text="TEST SPEED"
+                android:textColor="@color/accent_cyan"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
         <!-- Section 3: Active Defense Modules -->
         <TextView
             android:layout_width="wrap_content"
@@ -679,6 +728,65 @@
                 android:paddingVertical="4dp"
                 android:text="SNOOZE"
                 android:textColor="@color/accent_amber"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Section: App Bypass & Split Tunneling -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="PER-APP BYPASS &amp; SPLIT TUNNELING"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:letterSpacing="0.08"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:id="@+id/cardBypassApps"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_card_clickable"
+            android:clickable="true"
+            android:focusable="true"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="16dp"
+            android:layout_marginBottom="20dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Bypass Specific Apps (Split Tunnel)"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvBypassAppsCount"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="0 Apps Bypassed • Tap to configure"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_pill_active"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"
+                android:text="SELECT APPS"
+                android:textColor="@color/accent_emerald"
                 android:textSize="11sp"
                 android:textStyle="bold" />
         </LinearLayout>

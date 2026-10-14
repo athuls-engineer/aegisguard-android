@@ -108,11 +108,20 @@ public class DnsForwarder {
         try {
             DatagramSocket socket = new DatagramSocket();
             vpnService.protect(socket);
-            Network net = this.underlyingNetwork;
-            if (net != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                try {
-                    net.bindSocket(socket);
-                } catch (Throwable ignored) {}
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Network net = null;
+                ConnectivityManager cm = (ConnectivityManager) vpnService.getSystemService(Context.CONNECTIVITY_SERVICE);
+                if (cm != null) {
+                    net = cm.getActiveNetwork();
+                }
+                if (net == null) {
+                    net = this.underlyingNetwork;
+                }
+                if (net != null) {
+                    try {
+                        net.bindSocket(socket);
+                    } catch (Throwable ignored) {}
+                }
             }
             return socket;
         } catch (Exception e) {
@@ -300,6 +309,20 @@ public class DnsForwarder {
             int rcode = rawResponse[3] & 0x0F;
             if (rcode == 0) {
                 putCache(cacheKey, rawResponse);
+                rawResponse[0] = (byte) ((query.txId >> 8) & 0xFF);
+                rawResponse[1] = (byte) (query.txId & 0xFF);
+                return rawResponse;
+            }
+
+            // Upstream returned an error (SERVFAIL, REFUSED, NXDOMAIN).
+            // If we have a previously cached valid response (even if stale), serve it!
+            // This permanently prevents "website not loading after a few days" when an ISP/carrier has transient DNS outages.
+            if (cached != null) {
+                byte[] response = Arrays.copyOf(cached.rawPayload, cached.rawPayload.length);
+                response[0] = (byte) ((query.txId >> 8) & 0xFF);
+                response[1] = (byte) (query.txId & 0xFF);
+                putCache(cacheKey, cached.rawPayload); // Re-arm cache grace period
+                return response;
             }
 
             rawResponse[0] = (byte) ((query.txId >> 8) & 0xFF);
@@ -471,6 +494,15 @@ public class DnsForwarder {
                             cache.remove(entry.getKey());
                             evicted++;
                             if (evicted > 1024) break;
+                        }
+                    }
+                    if (cache.size() >= MAX_CACHE_ENTRIES - 512 && evicted < 512) {
+                        for (Map.Entry<String, CacheEntry> entry : cache.entrySet()) {
+                            if (!entry.getValue().isFresh()) {
+                                cache.remove(entry.getKey());
+                                evicted++;
+                                if (evicted > 1024) break;
+                            }
                         }
                     }
                     if (cache.size() >= MAX_CACHE_ENTRIES - 512) {
