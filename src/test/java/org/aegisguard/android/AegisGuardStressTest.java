@@ -291,7 +291,8 @@ public class AegisGuardStressTest {
             "appsflyer.com", "branch.io", "kochava.com", "adjust.com", "mixpanel.com",
             "ads.youtube.com", "ad.youtube.com", "imasdk.googleapis.com", "youtubeads.googleapis.com",
             "ad-delivery.youtube.com", "eligibility-panelresearch.googlevideo.com", "video-stats.l.google.com",
-            "citrusad.com", "promoteiq.com", "promoted.ai", "adroll.com", "skimlinks.com", "viglink.com"
+            "citrusad.com", "promoteiq.com", "promoted.ai", "adroll.com", "skimlinks.com", "viglink.com",
+            "googletagservices.com", "raptive.com", "sonobi.com"
         };
 
         // Malware & Cryptominer test vectors
@@ -306,7 +307,7 @@ public class AegisGuardStressTest {
         String[] heuristicPrefixes = new String[] {
             "ad.", "ads.", "adx.", "appads.", "app-ads.", "adtrack.", "adtracker.",
             "banner.", "banners.", "bannerads.", "inappads.", "popup.", "popunder.",
-            "sponsored.", "promoted.", "adclick."
+            "sponsored.", "promoted.", "adclick.", "ads1.", "adserver2.", "banner-cdn."
         };
 
         // Ensure clean state before test run

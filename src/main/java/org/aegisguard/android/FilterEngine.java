@@ -174,8 +174,8 @@ public class FilterEngine {
     private static final Set<String> AD_SUBDOMAIN_LABELS = new HashSet<>(Arrays.asList(
         "ad", "ads", "adserver", "adservers", "adservice", "adservices",
         "adsystem", "adsystems", "admanager", "adcontent", "adcdn", "addelivery",
-        "adnetwork", "adtrack", "adtracker", "adclient", "adtag", "adx", "appads",
-        "banner", "banners", "bannerad", "bannerads", "inappads",
+        "adnetwork", "adtrack", "adtracker", "adclient", "adtag", "adx", "appads", "app-ads", "app-ad",
+        "banner", "banners", "bannerad", "bannerads", "banner-cdn", "banners-cdn", "inappads",
         "popup", "popups", "popunder", "popunders",
         "interstitial", "interstitials", "displayads", "nativeads",
         "pagead", "videoads", "servedby", "rewarded", "rewardedads",
@@ -201,6 +201,7 @@ public class FilterEngine {
             "adservice.google.com", "admob.com", "media.admob.com", "pubads.g.doubleclick.net",
             "securepubads.g.doubleclick.net", "pagead2.googleadservices.com", "googleadservices.com",
             "ads.google.com", "adsyndication.com", "imasdk.googleapis.com", "partnerad.l.google.com",
+            "googletagservices.com", "partner.googleadservices.com",
             "adclick.g.doubleclick.net", "ade.googlesyndication.com",
             "cm.g.doubleclick.net", "stats.g.doubleclick.net", "adtrafficquality.google",
             "ep1.adtrafficquality.google", "admob.google.com", "googlemobileads.google.com",
@@ -271,7 +272,10 @@ public class FilterEngine {
             "snigelweb.com", "adengine.snigelweb.com",
             "freestar.io", "a.pub.network", "pub.network",
             "mediavine.com", "scripts.mediavine.com",
-            "adthrive.com", "ads.adthrive.com",
+            "adthrive.com", "ads.adthrive.com", "raptive.com",
+            "sonobi.com", "conversantmedia.com", "fastclick.net", "exponential.com",
+            "tribalfusion.com", "contextweb.com", "pulsepoint.com", "yieldlab.net",
+            "smartclip.net", "smartclip.tv", "unruly.co", "appnexus.com", "carbonads.net",
             "adpushup.com", "setupad.com", "prebid.setupad.com",
             "optidigital.com", "monetizemore.com", "pubguru.com",
             "adstyle.com", "dianomi.com",
@@ -446,6 +450,7 @@ public class FilterEngine {
             domain.contains("analytics.tiktok.com") || domain.contains("ads.tiktok.com") ||
             domain.contains("ads.twitter.com") || domain.contains("ads-twitter.com") ||
             domain.contains("adservice.google.") || domain.contains("googleads.") ||
+            domain.contains("googletagservices.") || domain.contains("partnerad.") ||
             domain.contains("pagead2.") || domain.contains("analytics.google.") ||
             domain.equals("ads.youtube.com") || domain.endsWith(".ads.youtube.com") ||
             domain.equals("ad.youtube.com") || domain.endsWith(".ad.youtube.com") ||
@@ -892,7 +897,32 @@ public class FilterEngine {
                         subCount = labels.length - 3;
                     }
                     for (int i = 0; i < subCount; i++) {
-                        if (AD_SUBDOMAIN_LABELS.contains(labels[i])) {
+                        String label = labels[i];
+                        if (AD_SUBDOMAIN_LABELS.contains(label)) {
+                            return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
+                        }
+                        // Numbered or hyphenated ad subdomains (e.g. ads1, ads-us, adserver2, banner-cdn, mobileads-sdk)
+                        if (label.startsWith("ads") && label.length() > 3) {
+                            char next = label.charAt(3);
+                            if ((next >= '0' && next <= '9') || next == '-' || next == '_') {
+                                return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
+                            }
+                        }
+                        if (label.startsWith("adserver") || label.startsWith("adservice") ||
+                            label.startsWith("ad-server") || label.startsWith("ad-service") ||
+                            label.startsWith("adsystem") || label.startsWith("ad-system") ||
+                            label.startsWith("adcontent") || label.startsWith("ad-content") ||
+                            label.startsWith("addelivery") || label.startsWith("ad-delivery") ||
+                            label.startsWith("admanager") || label.startsWith("ad-manager") ||
+                            label.startsWith("adcdn") || label.startsWith("ad-cdn") || label.startsWith("ads-cdn") ||
+                            label.startsWith("bannerad") || label.startsWith("banner-") || label.startsWith("banner_") ||
+                            label.startsWith("banners-") || label.startsWith("banners_") ||
+                            label.startsWith("inappad") || label.startsWith("in-app-ad") ||
+                            label.startsWith("mobilead") || label.startsWith("mobile-ad") ||
+                            label.startsWith("videoad") || label.startsWith("video-ad") ||
+                            label.startsWith("nativead") || label.startsWith("native-ad") ||
+                            label.startsWith("sponsoredad") || label.startsWith("promotedad") ||
+                            label.startsWith("popunder")) {
                             return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
                         }
                     }
