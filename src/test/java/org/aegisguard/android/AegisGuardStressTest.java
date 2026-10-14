@@ -748,7 +748,7 @@ public class AegisGuardStressTest {
                 this.payload = payload;
                 long now = System.currentTimeMillis();
                 this.freshUntil = now + ttlMs;
-                this.staleUntil = now + (24 * 60 * 60 * 1000L);
+                this.staleUntil = now + (7 * 24 * 60 * 60 * 1000L); // 7 days (prevents website failure after a few days)
             }
         }
 

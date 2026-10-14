@@ -21,13 +21,12 @@ public class FilterUpdateReceiver extends BroadcastReceiver {
         Log.i(TAG, "5-Hour Periodic Alarm Triggered: Checking for global threat intelligence updates...");
 
         SharedPreferences sp = context.getSharedPreferences(DynamicFilterManager.PREFS_NAME, Context.MODE_PRIVATE);
-        boolean autoUpdateEnabled = sp.getBoolean(DynamicFilterManager.KEY_AUTO_UPDATE, true);
+        boolean autoUpdateEnabled = sp.getBoolean(DynamicFilterManager.KEY_AUTO_UPDATE, false);
 
         if (autoUpdateEnabled) {
             DynamicFilterManager.updateFiltersAsync(context.getApplicationContext(), null);
+            // Guarantee reschedule for next 5 hours
+            DynamicFilterManager.schedulePeriodicUpdate(context.getApplicationContext());
         }
-
-        // Guarantee reschedule for next 5 hours
-        DynamicFilterManager.schedulePeriodicUpdate(context.getApplicationContext());
     }
 }

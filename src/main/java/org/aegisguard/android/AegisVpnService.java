@@ -266,7 +266,7 @@ public class AegisVpnService extends VpnService implements Runnable {
             ThreadPoolExecutor executor = new ThreadPoolExecutor(
                 32, 128, 60L, TimeUnit.SECONDS,
                 new LinkedBlockingQueue<Runnable>(2048),
-                new ThreadPoolExecutor.CallerRunsPolicy()
+                new ThreadPoolExecutor.DiscardOldestPolicy()
             );
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD) {
                 executor.allowCoreThreadTimeOut(true);

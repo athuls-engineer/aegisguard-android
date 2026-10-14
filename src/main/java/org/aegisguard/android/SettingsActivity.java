@@ -219,7 +219,7 @@ public class SettingsActivity extends Activity {
         swAutoStartOnBoot.setChecked(prefs.getBoolean(KEY_AUTO_START, true));
 
         if (swAutoUpdateFilters != null) {
-            swAutoUpdateFilters.setChecked(prefs.getBoolean(DynamicFilterManager.KEY_AUTO_UPDATE, true));
+            swAutoUpdateFilters.setChecked(prefs.getBoolean(DynamicFilterManager.KEY_AUTO_UPDATE, false));
         }
         updateThreatIntelligenceDisplay();
         updateCustomRulesDisplay();

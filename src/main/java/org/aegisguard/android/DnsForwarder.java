@@ -48,7 +48,7 @@ public class DnsForwarder {
     private static final int RETRY_INTERVAL_MS = 120;
     private static final int SECOND_RETRY_INTERVAL_MS = 350;
     private static final long FRESH_TTL_MS = 600_000L; // 10 minutes fresh (eliminates redundant background traffic)
-    private static final long STALE_USABLE_MS = 24 * 60 * 60 * 1000L; // 24 hours stale-while-revalidate
+    private static final long STALE_USABLE_MS = 7 * 24 * 60 * 60 * 1000L; // 7 days (prevents website failure after a few days)
     private static final int MAX_CACHE_ENTRIES = 8192;
 
     private static class CacheEntry {
@@ -108,6 +108,12 @@ public class DnsForwarder {
         try {
             DatagramSocket socket = new DatagramSocket();
             vpnService.protect(socket);
+            Network net = this.underlyingNetwork;
+            if (net != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                try {
+                    net.bindSocket(socket);
+                } catch (Throwable ignored) {}
+            }
             return socket;
         } catch (Exception e) {
             return null;
@@ -310,8 +316,11 @@ public class DnsForwarder {
             return response;
         }
 
-        // 4. Fallback: Synthesize clean SERVFAIL so Android client handles error immediately without a 5-second hang!
-        return createServfailResponse(queryDnsPayload, query.txId);
+        // 4. Silent Drop on Upstream Timeout:
+        // NEVER synthesize SERVFAIL! Returning SERVFAIL causes Android libresolv and Chrome to mark
+        // the domain as broken (DNS_PROBE_FINISHED_BAD_CONFIG) and lock the user out for minutes.
+        // Returning null allows the client's UDP resolver to naturally re-transmit after 500ms when network finishes handoff.
+        return null;
     }
 
     /**

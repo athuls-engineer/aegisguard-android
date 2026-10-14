@@ -50,7 +50,7 @@ public class DynamicFilterManager {
 
     // 5 Hours = 5 * 60 * 60 * 1000 milliseconds
     public static final long UPDATE_INTERVAL_MS = 5 * 60 * 60 * 1000L;
-    private static final String CACHE_FILE_NAME = "aegis_dynamic_threat_cache_v303.txt";
+    private static final String CACHE_FILE_NAME = "aegis_dynamic_threat_cache_v306.txt";
     private static final int MAX_DYNAMIC_RULES = 35000; // Optimal memory bounds for low-end hardware
 
     // Curated Global Threat Intelligence Feeds (Strictly validated to avoid false positives and site breakage)
@@ -112,29 +112,36 @@ public class DynamicFilterManager {
             return false;
         }
 
-        // Reject critical public, government, educational & banking TLDs
+        // Reject critical public, government, educational, banking & infrastructure TLDs
         if (d.endsWith(".edu") || d.endsWith(".gov") || d.endsWith(".mil") ||
             d.endsWith(".gov.in") || d.endsWith(".nic.in") || d.endsWith(".ac.uk") ||
-            d.endsWith(".gov.uk") || d.endsWith(".bank")) {
+            d.endsWith(".gov.uk") || d.endsWith(".bank") || d.endsWith(".edu.in")) {
             return false;
         }
 
         // Functional Subdomain Shield: Reject functional website prefixes
         int firstDot = d.indexOf('.');
-        if (firstDot > 0) {
-            String firstLabel = d.substring(0, firstDot);
-            if (FUNCTIONAL_SUBDOMAIN_PREFIXES.contains(firstLabel)) {
-                return false;
-            }
+        int lastDot = d.lastIndexOf('.');
+        if (firstDot <= 0 || firstDot == lastDot) {
+            // Apex domain (e.g. company.com or short domain) - NEVER ingest dynamically!
+            // All legitimate apex ad servers belong in the verified FilterEngine.AD_DOMAINS.
+            return false;
         }
 
-        // Apex domain protection: Dynamic threat feeds must NOT block apex domains of public websites
-        int lastDot = d.lastIndexOf('.');
-        if (firstDot == lastDot) {
-            // Only 1 dot -> Apex domain (e.g. company.com). Only allowed if explicitly an ad/tracker network
-            if (!d.contains("ad") && !d.contains("track") && !d.contains("pixel") && !d.contains("banner") && !d.contains("popup")) {
-                return false;
-            }
+        String firstLabel = d.substring(0, firstDot);
+        if (FUNCTIONAL_SUBDOMAIN_PREFIXES.contains(firstLabel)) {
+            return false;
+        }
+
+        // Strict Dynamic Ad Token Requirement:
+        // A dynamically pulled domain MUST have an unambiguous ad/telemetry marker to prevent collateral site breakage
+        boolean hasAdToken = d.contains(".ad.") || d.contains(".ads.") || d.contains(".adserver.") ||
+                             d.contains(".adservice.") || d.contains(".adsystem.") || d.contains(".doubleclick.") ||
+                             d.contains(".telemetry.") || d.contains(".pixel.") || d.contains(".track.") ||
+                             d.contains(".tracker.") || d.contains("admob") || d.contains("appads") ||
+                             d.contains("inappads") || d.contains("bannerads") || d.contains("popunder");
+        if (!hasAdToken) {
+            return false;
         }
 
         return true;
@@ -164,16 +171,15 @@ public class DynamicFilterManager {
             }
         });
 
-        // 2. Schedule recurring 5-hour auto-update alarm
-        schedulePeriodicUpdate(appContext);
-
-        // 3. Check if 5 hours have elapsed since last update
+        // 2. Schedule recurring 5-hour auto-update alarm ONLY IF user explicitly enabled it
         SharedPreferences sp = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        boolean autoUpdateEnabled = sp.getBoolean(KEY_AUTO_UPDATE, true);
-        long lastUpdate = sp.getLong(KEY_LAST_UPDATE, 0);
-
-        if (autoUpdateEnabled && (System.currentTimeMillis() - lastUpdate > UPDATE_INTERVAL_MS)) {
-            updateFiltersAsync(appContext, null);
+        boolean autoUpdateEnabled = sp.getBoolean(KEY_AUTO_UPDATE, false);
+        if (autoUpdateEnabled) {
+            schedulePeriodicUpdate(appContext);
+            long lastUpdate = sp.getLong(KEY_LAST_UPDATE, 0);
+            if (System.currentTimeMillis() - lastUpdate > UPDATE_INTERVAL_MS) {
+                updateFiltersAsync(appContext, null);
+            }
         }
     }
 
@@ -451,10 +457,10 @@ public class DynamicFilterManager {
         try {
             // Guarantee removal of legacy unvetted cache from previous versions
             try {
-                File legacy = new File(context.getFilesDir(), "aegis_dynamic_threat_cache.txt");
-                if (legacy.exists()) {
-                    legacy.delete();
-                }
+                File legacy1 = new File(context.getFilesDir(), "aegis_dynamic_threat_cache.txt");
+                if (legacy1.exists()) legacy1.delete();
+                File legacy2 = new File(context.getFilesDir(), "aegis_dynamic_threat_cache_v303.txt");
+                if (legacy2.exists()) legacy2.delete();
             } catch (Throwable ignored) {}
 
             File file = new File(context.getFilesDir(), CACHE_FILE_NAME);
