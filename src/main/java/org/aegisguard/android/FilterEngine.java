@@ -210,7 +210,6 @@ public class FilterEngine {
             "app-measurement.com", "ads.youtube.com", "ad.youtube.com",
             "youtubeads.googleapis.com", "youtubei-ad.googleapis.com",
             "ad-delivery.youtube.com", "eligibility-panelresearch.googlevideo.com",
-            "video-stats.l.google.com",
             // Feature Flagging & In-App Ad Rollout Gateways (Character.ai, etc.)
             "prodregistryv2.org", "statsigapi.net", "api.statsig.com", "statsig.com",
             // App Monetization, Full-Screen Video & Interstitial SDKs
@@ -475,8 +474,7 @@ public class FilterEngine {
             domain.equals("imasdk.googleapis.com") || domain.endsWith(".imasdk.googleapis.com") ||
             domain.contains("adtrafficquality.") ||
             domain.contains("eligibility-panelresearch.") ||
-            domain.contains("ad-delivery.") ||
-            domain.contains("video-stats.")) {
+            domain.contains("ad-delivery.")) {
             return false;
         }
 
@@ -493,7 +491,9 @@ public class FilterEngine {
             domain.equals("messenger.com") || domain.endsWith(".messenger.com") ||
             domain.equals("snapchat.com") || domain.endsWith(".snapchat.com") ||
             domain.equals("sc-cdn.net") || domain.endsWith(".sc-cdn.net") ||
-            // Google & YouTube Core Infrastructure & Streaming Delivery
+            // Google & YouTube Core Infrastructure & Streaming Delivery (with ABR video-stats QoS)
+            domain.equals("video-stats.l.google.com") || domain.endsWith(".video-stats.l.google.com") ||
+            domain.equals("video-stats.googlevideo.com") || domain.endsWith(".video-stats.googlevideo.com") ||
             domain.equals("google.com") || domain.endsWith(".google.com") ||
             domain.equals("youtube.com") || domain.endsWith(".youtube.com") ||
             domain.equals("googlevideo.com") || domain.endsWith(".googlevideo.com") ||
@@ -527,14 +527,19 @@ public class FilterEngine {
             domain.equals("discordapp.com") || domain.endsWith(".discordapp.com") || domain.equals("discordapp.net") || domain.endsWith(".discordapp.net") ||
             domain.equals("discord.media") || domain.endsWith(".discord.media") || domain.equals("discordcdn.com") || domain.endsWith(".discordcdn.com") ||
             domain.equals("netflix.com") || domain.endsWith(".netflix.com") || domain.endsWith(".nflxvideo.net") || domain.endsWith(".nflximg.net") ||
-            // Disney+ Hotstar, JioHotstar & Streaming Media Infrastructure (Eliminates NET_101 & DRM errors)
+            // Disney+ Hotstar, JioHotstar, JioCinema & Streaming Media Infrastructure (Eliminates NET_101 & DRM errors)
             domain.equals("hotstar.com") || domain.endsWith(".hotstar.com") ||
             domain.equals("hotstarcdn.com") || domain.endsWith(".hotstarcdn.com") ||
             domain.equals("hotstar-cdn.net") || domain.endsWith(".hotstar-cdn.net") ||
             domain.equals("starott.com") || domain.endsWith(".starott.com") ||
+            domain.equals("jiocinema.com") || domain.endsWith(".jiocinema.com") ||
             domain.equals("conviva.com") || domain.endsWith(".conviva.com") ||
             domain.equals("onetrust.com") || domain.endsWith(".onetrust.com") ||
             domain.equals("disneyplus.com") || domain.endsWith(".disneyplus.com") ||
+            domain.equals("primevideo.com") || domain.endsWith(".primevideo.com") ||
+            domain.equals("aiv-cdn.net") || domain.endsWith(".aiv-cdn.net") ||
+            domain.equals("aiv-delivery.net") || domain.endsWith(".aiv-delivery.net") ||
+            domain.equals("pv-cdn.net") || domain.endsWith(".pv-cdn.net") ||
             domain.equals("amazon.com") || domain.endsWith(".amazon.com") || domain.endsWith(".media-amazon.com") ||
             domain.equals("amazon.in") || domain.endsWith(".amazon.in") ||
             domain.equals("apple.com") || domain.endsWith(".apple.com") || domain.endsWith(".icloud.com") ||

@@ -271,7 +271,8 @@ public class AegisGuardStressTest {
             "telegram.org", "t.me", "telesco.pe", "telegram-cdn.org",
             "google.com", "youtube.com", "googlevideo.com", "ytimg.com",
             "ggpht.com", "googleapis.com", "gstatic.com", "googleusercontent.com", "gvt1.com", "gvt2.com", "youtu.be", "1e100.net",
-            "hotstar.com", "hotstarcdn.com", "starott.com", "netflix.com",
+            "hotstar.com", "hotstarcdn.com", "starott.com", "jiocinema.com", "netflix.com",
+            "video-stats.l.google.com",
             "npci.org.in", "paytm.com", "phonepe.com", "razorpay.com",
             "cloudflare.com", "fastly.net", "akamaized.net", "openai.com", "chatgpt.com",
             "cdnjs.cloudflare.com", "jsdelivr.net", "unpkg.com", "bit.ly", "wikipedia.org",
@@ -291,7 +292,7 @@ public class AegisGuardStressTest {
             "highcpmgate.com", "monetag.com", "admaven.com", "ezoic.net", "mediavine.com", "snigelweb.com", "freestar.io",
             "appsflyer.com", "branch.io", "kochava.com", "adjust.com", "mixpanel.com",
             "ads.youtube.com", "ad.youtube.com", "imasdk.googleapis.com", "youtubeads.googleapis.com",
-            "ad-delivery.youtube.com", "eligibility-panelresearch.googlevideo.com", "video-stats.l.google.com",
+            "ad-delivery.youtube.com", "eligibility-panelresearch.googlevideo.com", "youtubei-ad.googleapis.com",
             "citrusad.com", "promoteiq.com", "promoted.ai", "adroll.com", "skimlinks.com", "viglink.com",
             "googletagservices.com", "raptive.com", "sonobi.com",
             "2mdn.net", "serving-sys.com", "flashtalking.com", "adswizz.com", "galaksion.com"

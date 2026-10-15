@@ -421,7 +421,7 @@ public class AegisVpnService extends VpnService implements Runnable {
                 try {
                     Builder builder = new Builder();
                     builder.setSession("AegisGuard Ultra");
-                    builder.setMtu(1400);
+                    builder.setMtu(1500);
 
                     // Subnet IPv4: 10.99.0.1/24 ensures 10.99.0.2 is in local subnet
                     builder.addAddress("10.99.0.1", 24);

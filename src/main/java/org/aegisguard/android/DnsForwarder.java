@@ -104,6 +104,9 @@ public class DnsForwarder {
         prewarmHotDomains();
     }
 
+    private static final int MAX_SOCKET_POOL = 16;
+    private final ConcurrentLinkedQueue<DatagramSocket> socketPool = new ConcurrentLinkedQueue<>();
+
     public DatagramSocket createProtectedSocket() {
         try {
             DatagramSocket socket = new DatagramSocket();
@@ -129,13 +132,45 @@ public class DnsForwarder {
         }
     }
 
+    private DatagramSocket borrowProtectedSocket() {
+        DatagramSocket socket;
+        while ((socket = socketPool.poll()) != null) {
+            if (!socket.isClosed()) {
+                // Non-blocking flush of any stale packets in the OS buffer (< 0.1ms)
+                try {
+                    socket.setSoTimeout(1);
+                    byte[] drain = new byte[512];
+                    DatagramPacket p = new DatagramPacket(drain, drain.length);
+                    while (true) {
+                        socket.receive(p);
+                    }
+                } catch (Exception ignored) {}
+                return socket;
+            }
+        }
+        return createProtectedSocket();
+    }
+
+    private void returnProtectedSocket(DatagramSocket socket) {
+        if (socket == null || socket.isClosed()) return;
+        if (socketPool.size() < MAX_SOCKET_POOL) {
+            socketPool.offer(socket);
+        } else {
+            try { socket.close(); } catch (Exception ignored) {}
+        }
+    }
+
     public void drainSocketPool() {
-        // Dedicated ephemeral sockets are managed per-query; zero risk of stale socket reuse
+        DatagramSocket s;
+        while ((s = socketPool.poll()) != null) {
+            try { s.close(); } catch (Exception ignored) {}
+        }
     }
 
     public void setUpstreamProvider(String provider) {
         if (provider != null) {
             this.selectedProvider = provider;
+            drainSocketPool();
             refreshNetworkDns();
             prewarmHotDomains();
         }
@@ -143,20 +178,21 @@ public class DnsForwarder {
 
     private void initDefaultUpstreams() {
         try {
-            // Dual-Stack Cloudflare (Fastest Global Anycast: 1-5ms)
-            upstreamServers.add(InetAddress.getByName("1.1.1.1"));
+            // Dual-Stack Google Public DNS (Full ECS Client Subnet for Optimal Regional CDN Edge)
             upstreamServers.add(InetAddress.getByName("8.8.8.8"));
-            upstreamServers.add(InetAddress.getByName("1.0.0.1"));
+            upstreamServers.add(InetAddress.getByName("1.1.1.1"));
             upstreamServers.add(InetAddress.getByName("8.8.4.4"));
+            upstreamServers.add(InetAddress.getByName("1.0.0.1"));
             try {
-                upstreamServers.add(InetAddress.getByName("2606:4700:4700::1111"));
                 upstreamServers.add(InetAddress.getByName("2001:4860:4860::8888"));
+                upstreamServers.add(InetAddress.getByName("2606:4700:4700::1111"));
             } catch (Exception ignored) {}
         } catch (Exception ignored) {}
     }
 
     public void setUnderlyingNetwork(Network network) {
         this.underlyingNetwork = network;
+        drainSocketPool();
         refreshNetworkDns();
         prewarmHotDomains();
     }
@@ -248,6 +284,21 @@ public class DnsForwarder {
         }
     }
 
+    public static boolean isStreamingOrCdnDomain(String domain) {
+        if (domain == null) return false;
+        String d = domain.toLowerCase(Locale.US);
+        return d.endsWith("googlevideo.com") || d.endsWith("nflxvideo.net") ||
+               d.endsWith("nflximg.net") || d.endsWith("hotstarcdn.com") ||
+               d.endsWith("hotstar-cdn.net") || d.endsWith("starott.com") ||
+               d.endsWith("jiocinema.com") || d.endsWith("aiv-cdn.net") ||
+               d.endsWith("aiv-delivery.net") || d.endsWith("pv-cdn.net") ||
+               d.endsWith("media-amazon.com") || d.endsWith("akamaized.net") ||
+               d.endsWith("akamaihd.net") || d.endsWith("akamai.net") ||
+               d.endsWith("fastly.net") || d.endsWith("cloudfront.net") ||
+               d.endsWith("fbcdn.net") || d.endsWith("cdninstagram.com") ||
+               d.endsWith("tiktokcdn.com");
+    }
+
     /**
      * Resolves a clean DNS query with sub-millisecond execution.
      * 1. Fresh Cache Hit -> Returns immediately (< 0.02ms).
@@ -276,6 +327,8 @@ public class DnsForwarder {
                 final byte[] queryPayloadCopy = new byte[query.dnsLength];
                 System.arraycopy(packet, query.dnsOffset, queryPayloadCopy, 0, query.dnsLength);
                 final int originalTxId = query.txId;
+                final int qType = query.qType;
+                final String qName = query.qName;
 
                 // De-duplicate background refreshes to eliminate network congestion and packet floods
                 if (inFlightRefreshes.add(cacheKey)) {
@@ -283,7 +336,7 @@ public class DnsForwarder {
                         @Override
                         public void run() {
                             try {
-                                byte[] fresh = forwardUpstream(queryPayloadCopy, originalTxId);
+                                byte[] fresh = forwardUpstream(queryPayloadCopy, originalTxId, qType, qName);
                                 if (fresh != null && fresh.length >= 12 && (fresh[3] & 0x0F) == 0) {
                                     putCache(cacheKey, fresh);
                                 }
@@ -304,7 +357,7 @@ public class DnsForwarder {
         byte[] queryDnsPayload = new byte[query.dnsLength];
         System.arraycopy(packet, query.dnsOffset, queryDnsPayload, 0, query.dnsLength);
 
-        byte[] rawResponse = forwardUpstream(queryDnsPayload, query.txId);
+        byte[] rawResponse = forwardUpstream(queryDnsPayload, query.txId, query.qType, query.qName);
         if (rawResponse != null && rawResponse.length >= 12) {
             int rcode = rawResponse[3] & 0x0F;
             if (rcode == 0) {
@@ -347,18 +400,41 @@ public class DnsForwarder {
     }
 
     /**
-     * Executes line-rate Dual-Stack Anycast & Local Edge racing.
-     * Races up to 5 resolvers (physical ISP, Google, Cloudflare, Quad9) in parallel with dual retry waves.
+     * Executes line-rate Dual-Stack Anycast & Local Edge racing with zero-latency forwarding.
+     * Prioritizes ECS-preserving resolvers for video CDNs and eliminates artificial NODATA delays.
      */
-    private byte[] forwardUpstream(byte[] queryPayload, int expectedTxId) {
-        DatagramSocket socket = createProtectedSocket();
+    private byte[] forwardUpstream(byte[] queryPayload, int expectedTxId, int qType, String qName) {
+        DatagramSocket socket = borrowProtectedSocket();
         if (socket == null) return null;
 
         try {
             int numServers = upstreamServers.size();
-            int sendCount = Math.min(numServers, 5);
+            List<InetAddress> targets = new ArrayList<>(numServers);
+            boolean isStreaming = isStreamingOrCdnDomain(qName);
+
+            if (isStreaming) {
+                // For video streaming & CDNs, prioritize Physical ISP Gateway DNS and Google DNS (8.8.8.8)
+                // Both preserve EDNS Client Subnet (ECS) or are on-net, guaranteeing the CDN returns
+                // the closest local ISP edge cache rather than misrouting across continents.
+                for (InetAddress s : upstreamServers) {
+                    String ip = s.getHostAddress();
+                    if (ip != null && !ip.equals("1.1.1.1") && !ip.equals("1.0.0.1") && !ip.startsWith("2606:4700:")) {
+                        targets.add(s);
+                    }
+                }
+                for (InetAddress s : upstreamServers) {
+                    if (!targets.contains(s)) {
+                        targets.add(s);
+                    }
+                }
+            } else {
+                targets.addAll(upstreamServers);
+            }
+
+            // Wave 1: Race top 3 resolvers in parallel (eliminates UDP burst router drops)
+            int sendCount = Math.min(targets.size(), 3);
             for (int i = 0; i < sendCount; i++) {
-                InetAddress server = upstreamServers.get(i);
+                InetAddress server = targets.get(i);
                 if (server != null) {
                     try {
                         DatagramPacket sendPacket = new DatagramPacket(queryPayload, queryPayload.length, server, 53);
@@ -383,16 +459,17 @@ public class DnsForwarder {
                 int remaining = (int) (deadline - now);
                 if (remaining <= 0) break;
 
-                // If a resolver returned NODATA, wait at most 40ms for a racing resolver that has real IP records
-                if (backupEmptyResponse != null && (now - emptyReceivedTime) >= 40) {
+                // If a Type A query received NODATA, wait at most 25ms for a racing resolver that has real IP records
+                if (backupEmptyResponse != null && (now - emptyReceivedTime) >= 25) {
                     return backupEmptyResponse;
                 }
 
                 // Fast re-transmit wave 1 after 120ms
                 if (!firstRetryDone && (now - startTime) >= RETRY_INTERVAL_MS) {
                     firstRetryDone = true;
-                    for (int i = 0; i < sendCount; i++) {
-                        InetAddress server = upstreamServers.get(i);
+                    int wave1Count = Math.min(targets.size(), 4);
+                    for (int i = 0; i < wave1Count; i++) {
+                        InetAddress server = targets.get(i);
                         if (server != null) {
                             try {
                                 DatagramPacket retryPacket = new DatagramPacket(queryPayload, queryPayload.length, server, 53);
@@ -405,8 +482,9 @@ public class DnsForwarder {
                 // Fast re-transmit wave 2 after 350ms (for lossy mobile towers)
                 if (!secondRetryDone && (now - startTime) >= SECOND_RETRY_INTERVAL_MS) {
                     secondRetryDone = true;
-                    for (int i = 0; i < sendCount; i++) {
-                        InetAddress server = upstreamServers.get(i);
+                    int wave2Count = targets.size();
+                    for (int i = 0; i < wave2Count; i++) {
+                        InetAddress server = targets.get(i);
                         if (server != null) {
                             try {
                                 DatagramPacket retryPacket = new DatagramPacket(queryPayload, queryPayload.length, server, 53);
@@ -417,12 +495,14 @@ public class DnsForwarder {
                 }
 
                 int nextTimeout = remaining;
-                if (!firstRetryDone) {
+                if (backupEmptyResponse != null) {
+                    nextTimeout = Math.min(nextTimeout, Math.max(5, (int) (25 - (now - emptyReceivedTime))));
+                } else if (!firstRetryDone) {
                     nextTimeout = Math.min(remaining, Math.max(10, (int) (RETRY_INTERVAL_MS - (now - startTime))));
                 } else if (!secondRetryDone) {
                     nextTimeout = Math.min(remaining, Math.max(10, (int) (SECOND_RETRY_INTERVAL_MS - (now - startTime))));
                 }
-                socket.setSoTimeout(Math.max(nextTimeout, 10));
+                socket.setSoTimeout(Math.max(nextTimeout, 5));
 
                 try {
                     socket.receive(recvPacket);
@@ -435,11 +515,16 @@ public class DnsForwarder {
 
                             if (rcode == 0) {
                                 if (ancount > 0) {
-                                    // NOERROR with Answer Records -> True winning answer! Return instantly
+                                    // NOERROR with Answer Records -> True winning answer! Return immediately!
                                     return Arrays.copyOf(recvBuffer, respLen);
                                 } else {
                                     // NOERROR with ANCOUNT == 0 (NODATA).
-                                    // Buffer and wait up to 40ms for a racing server with real records.
+                                    // For AAAA (IPv6), HTTPS (Type 65), CNAME, TXT, etc.:
+                                    // The domain has no records of this type. Return immediately without stalling!
+                                    // This eliminates 120ms of artificial lag on every dual-stack Android connection.
+                                    if (qType != 1) { // 1 = TYPE_A
+                                        return Arrays.copyOf(recvBuffer, respLen);
+                                    }
                                     if (backupEmptyResponse == null) {
                                         backupEmptyResponse = Arrays.copyOf(recvBuffer, respLen);
                                         emptyReceivedTime = System.currentTimeMillis();
@@ -464,7 +549,7 @@ public class DnsForwarder {
         } catch (Exception e) {
             return null;
         } finally {
-            try { socket.close(); } catch (Exception ignored) {}
+            returnProtectedSocket(socket);
         }
     }
 
@@ -555,16 +640,27 @@ public class DnsForwarder {
                     "discord.com", "discord.gg", "cdn.discordapp.com", "media.discordapp.net",
                     // Reddit
                     "reddit.com", "gateway.reddit.com", "gql.reddit.com", "redd.it",
-                    // YouTube & Google
+                    // YouTube & Google Infrastructure & ABR QoS
                     "youtube.com", "googlevideo.com", "ytimg.com", "google.com", "gstatic.com",
+                    "video-stats.l.google.com",
+                    // Netflix Video & Streaming Infrastructure
+                    "netflix.com", "nflxvideo.net", "nflximg.net",
+                    // Disney+ Hotstar & JioCinema Streaming Media
+                    "hotstar.com", "hotstarcdn.com", "starott.com", "jiocinema.com",
+                    // Amazon & Prime Video Delivery
+                    "amazon.in", "amazon.com", "primevideo.com", "media-amazon.com", "aiv-cdn.net",
+                    // Music & Audio Streaming
+                    "spotify.com", "scdn.co",
+                    // Live Video Streaming
+                    "twitch.tv", "ttvnw.net",
                     // E-Commerce & Retail Edge CDNs
                     "flipkart.com", "static-assets-web.flixcart.com", "rukminim1.flixcart.com", "rukminim2.flixcart.com",
-                    "amazon.in", "amazon.com", "myntra.com", "ajio.com",
-                    // Cloudflare
-                    "cloudflare.com"
+                    "myntra.com", "ajio.com",
+                    // Global Tier-1 CDNs
+                    "cloudflare.com", "fastly.net", "cloudfront.net", "akamaized.net"
                 };
 
-                DatagramSocket prewarmSocket = createProtectedSocket();
+                DatagramSocket prewarmSocket = borrowProtectedSocket();
                 if (prewarmSocket == null) return;
                 try {
                     prewarmSocket.setSoTimeout(300);
@@ -601,9 +697,7 @@ public class DnsForwarder {
                     }
                 } catch (Throwable ignored) {
                 } finally {
-                    if (prewarmSocket != null) {
-                        try { prewarmSocket.close(); } catch (Exception ignored) {}
-                    }
+                    returnProtectedSocket(prewarmSocket);
                 }
                 Log.i(TAG, "Autonomous pre-warming complete. Active RAM records: " + cache.size());
             }
