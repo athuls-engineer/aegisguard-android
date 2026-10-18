@@ -224,12 +224,19 @@ public class AegisVpnService extends VpnService implements Runnable {
         }
     }
 
+    public static volatile boolean sUserExplicitStop = false;
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null) {
             String action = intent.getAction();
             if (ACTION_STOP.equals(action)) {
-                stopVpn();
+                sUserExplicitStop = true;
+                if (prefs != null) {
+                    prefs.edit().putBoolean("shield_enabled", false).apply();
+                }
+                AegisWatchdogReceiver.cancelWatchdog(this);
+                stopVpn(true);
                 stopSelf();
                 return START_NOT_STICKY;
             } else if (ACTION_PAUSE.equals(action)) {
@@ -250,7 +257,7 @@ public class AegisVpnService extends VpnService implements Runnable {
                     new Thread(new Runnable() {
                         @Override
                         public void run() {
-                            stopVpn();
+                            stopVpn(false);
                             try { Thread.sleep(300); } catch (InterruptedException ignored) {}
                             startVpn();
                         }
@@ -260,12 +267,18 @@ public class AegisVpnService extends VpnService implements Runnable {
             }
         }
 
+        sUserExplicitStop = false;
+        if (prefs != null) {
+            prefs.edit().putBoolean("shield_enabled", true).apply();
+        }
+        AegisWatchdogReceiver.scheduleWatchdog(this);
         promoteToForeground();
         startVpn();
         return START_STICKY;
     }
 
     private synchronized void startVpn() {
+        sUserExplicitStop = false;
         promoteToForeground();
 
         if (workerThread != null && workerThread.isAlive()) {
@@ -296,16 +309,21 @@ public class AegisVpnService extends VpnService implements Runnable {
         if (prefs != null) {
             prefs.edit().putBoolean("shield_enabled", true).apply();
         }
+        AegisWatchdogReceiver.scheduleWatchdog(this);
     }
 
-    private synchronized void stopVpn() {
+    public synchronized void stopVpn(boolean userExplicit) {
         shouldStop.set(true);
         isRunning.set(false);
         notifyStateChanged(false);
         updateQuickSettingsTile(this);
 
-        if (prefs != null) {
-            prefs.edit().putBoolean("shield_enabled", false).apply();
+        if (userExplicit) {
+            sUserExplicitStop = true;
+            if (prefs != null) {
+                prefs.edit().putBoolean("shield_enabled", false).apply();
+            }
+            AegisWatchdogReceiver.cancelWatchdog(this);
         }
 
         if (dnsWorkerPool != null) {
@@ -331,6 +349,10 @@ public class AegisVpnService extends VpnService implements Runnable {
 
         forceSaveStats();
         stopForeground(true);
+    }
+
+    public synchronized void stopVpn() {
+        stopVpn(sUserExplicitStop);
     }
 
     private volatile long lastStatsSave = 0;
@@ -384,36 +406,37 @@ public class AegisVpnService extends VpnService implements Runnable {
                 connectivityManager.unregisterNetworkCallback(networkCallback);
             } catch (Exception ignored) {}
         }
-            stopVpn();
-            super.onDestroy();
+
+        boolean explicit = sUserExplicitStop;
+        stopVpn(explicit);
+
+        if (!explicit) {
+            Log.w(TAG, "AegisVpnService destroyed by OS while shield was active. Triggering 24/7 resurrection watchdog!");
+            AegisWatchdogReceiver.triggerImmediateResurrection(getApplicationContext());
         }
 
-        @Override
-        public void onRevoke() {
-            Log.i(TAG, "AegisGuard VPN permission revoked by system or user");
-            stopVpn();
-            super.onRevoke();
-        }
+        super.onDestroy();
+    }
 
-        @Override
-        public void onTaskRemoved(Intent rootIntent) {
-            super.onTaskRemoved(rootIntent);
-            // Ensure background protection stays active when app is swiped from recents
-            if (isRunning.get() && !shouldStop.get()) {
-                try {
-                    Intent restartServiceIntent = new Intent(getApplicationContext(), AegisVpnService.class);
-                    restartServiceIntent.setAction(ACTION_START);
-                    PendingIntent restartPendingIntent = PendingIntent.getService(
-                        getApplicationContext(), 999, restartServiceIntent, 
-                        PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE
-                    );
-                    AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-                    if (alarmManager != null) {
-                        alarmManager.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 1000, restartPendingIntent);
-                    }
-                } catch (Exception ignored) {}
-            }
+    @Override
+    public void onRevoke() {
+        Log.w(TAG, "AegisGuard VPN permission revoked by system or network reset");
+        stopVpn(false);
+        if (!sUserExplicitStop) {
+            AegisWatchdogReceiver.scheduleWatchdog(getApplicationContext());
         }
+        super.onRevoke();
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        super.onTaskRemoved(rootIntent);
+        // Ensure background protection stays active when app is swiped from recents
+        if (!sUserExplicitStop) {
+            Log.i(TAG, "App swiped from recents. Enforcing 24/7 service immortality.");
+            AegisWatchdogReceiver.triggerImmediateResurrection(getApplicationContext());
+        }
+    }
 
         @Override
         public void run() {
@@ -679,15 +702,24 @@ public class AegisVpnService extends VpnService implements Runnable {
                     try {
                         Thread.sleep(1000);
                     } catch (InterruptedException ie) {
+                        if (!sUserExplicitStop) {
+                            Log.w(TAG, "VPN sleep interrupted while shield enabled; continuing reconnect loop");
+                            continue;
+                        }
                         break;
                     }
                 }
             }
 
             saveStats();
-            isRunning.set(false);
-            notifyStateChanged(false);
-            updateQuickSettingsTile(this);
+            if (!sUserExplicitStop) {
+                Log.w(TAG, "VPN worker loop exited while shield enabled! Triggering immediate resurrection...");
+                AegisWatchdogReceiver.triggerImmediateResurrection(getApplicationContext());
+            } else {
+                isRunning.set(false);
+                notifyStateChanged(false);
+                updateQuickSettingsTile(this);
+            }
         }
 
     private static byte[] createIpv4TcpReset(byte[] packet, int length, int ipHeaderLen) {
@@ -945,7 +977,7 @@ public class AegisVpnService extends VpnService implements Runnable {
                .setContentIntent(pendingIntent)
                .setOngoing(true)
                .setPriority(Notification.PRIORITY_MAX)
-               .setCategory(Notification.CATEGORY_STATUS)
+               .setCategory(Notification.CATEGORY_SERVICE)
                .setVisibility(Notification.VISIBILITY_PUBLIC)
                .setWhen(System.currentTimeMillis())
                .setShowWhen(false)
@@ -970,6 +1002,8 @@ public class AegisVpnService extends VpnService implements Runnable {
             builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
         }
 
-        return builder.build();
+        Notification notification = builder.build();
+        notification.flags |= Notification.FLAG_NO_CLEAR | Notification.FLAG_ONGOING_EVENT;
+        return notification;
     }
 }
