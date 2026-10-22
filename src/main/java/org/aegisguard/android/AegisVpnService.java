@@ -134,6 +134,32 @@ public class AegisVpnService extends VpnService implements Runnable {
         }
     }
 
+    private static volatile AegisVpnService sInstance = null;
+
+    public static void recordAdBlockEvent(String domain, String category) {
+        AegisVpnService svc = sInstance;
+        if (svc != null) {
+            svc.adsBlockedCount.incrementAndGet();
+            svc.bytesSaved.addAndGet(240000);
+            svc.saveStats();
+            svc.maybeUpdateNotification();
+        }
+        if (sTrafficListener != null) {
+            sTrafficListener.onTrafficEvent(domain, category, true, "< 0.05ms");
+        }
+    }
+
+    public static boolean isSinkholePayload(byte[] dnsPayload, DnsPacketParser.DnsQueryInfo query) {
+        if (dnsPayload == null || query == null) return false;
+        int expectedLen = 12 + query.questionLength + 16;
+        if (query.qType == DnsPacketParser.TYPE_A && dnsPayload.length == expectedLen) {
+            int rdataOffset = 12 + query.questionLength + 12;
+            return dnsPayload[rdataOffset] == 0 && dnsPayload[rdataOffset + 1] == 0 &&
+                   dnsPayload[rdataOffset + 2] == 0 && dnsPayload[rdataOffset + 3] == 0;
+        }
+        return false;
+    }
+
     private ParcelFileDescriptor vpnInterface = null;
     private Thread workerThread = null;
     private ExecutorService dnsWorkerPool = null;
@@ -164,6 +190,7 @@ public class AegisVpnService extends VpnService implements Runnable {
     @Override
     public void onCreate() {
         super.onCreate();
+        sInstance = this;
         createNotificationChannel();
         promoteToForeground();
         FilterEngine.loadPreferences(this);
@@ -409,6 +436,10 @@ public class AegisVpnService extends VpnService implements Runnable {
 
         boolean explicit = sUserExplicitStop;
         stopVpn(explicit);
+
+        if (sInstance == this) {
+            sInstance = null;
+        }
 
         if (!explicit) {
             Log.w(TAG, "AegisVpnService destroyed by OS while shield was active. Triggering 24/7 resurrection watchdog!");
@@ -669,7 +700,7 @@ public class AegisVpnService extends VpnService implements Runnable {
                                                 long elapsedUs = (System.nanoTime() - startTime) / 1000;
                                                 String latencyStr = (elapsedUs / 1000.0) + "ms";
 
-                                                if (sTrafficListener != null) {
+                                                if (sTrafficListener != null && !isSinkholePayload(rawDnsResponse, query)) {
                                                     sTrafficListener.onTrafficEvent(query.qName, "Clean Traffic", false, latencyStr);
                                                 }
                                             } catch (Throwable t) {

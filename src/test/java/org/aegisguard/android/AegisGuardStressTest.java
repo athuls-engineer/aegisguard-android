@@ -285,7 +285,8 @@ public class AegisGuardStressTest {
         // Ad networks that MUST ALWAYS be blocked
         String[] adRoots = new String[] {
             "doubleclick.net", "pagead2.googlesyndication.com", "adservice.google.com", "admob.com",
-            "applovin.com", "applvn.com", "vungle.com", "unityads.unity3d.com", "ironsrc.com",
+            "applovin.com", "applvn.com", "applovin.net", "applvn.net", "vungle.com", "unityads.unity3d.com",
+            "unityads.net", "ironsrc.com", "ironsrc.net", "rayjump.com", "bigossp.com",
             "inmobi.com", "chartboost.com", "mintegral.com", "tapjoy.com", "pangle.io",
             "taboola.com", "outbrain.com", "criteo.com", "revcontent.com", "mgid.com",
             "popads.net", "popcash.net", "propellerads.com", "adsterra.com",
@@ -311,7 +312,10 @@ public class AegisGuardStressTest {
             "ad.", "ads.", "adx.", "appads.", "app-ads.", "adtrack.", "adtracker.",
             "banner.", "banners.", "bannerads.", "inappads.", "popup.", "popunder.",
             "sponsored.", "promoted.", "adclick.", "ads1.", "adserver2.", "banner-cdn.",
-            "sponsor.", "promo.", "sponsor-cdn."
+            "sponsor.", "promo.", "sponsor-cdn.",
+            "interstitial.", "interstitials.", "rewarded.", "rewardedvideo.", "fullscreen.",
+            "full-screen.", "appopen.", "app-open.", "splash.", "playable.", "mraid.",
+            "preroll.", "midroll.", "postroll."
         };
 
         // Ensure clean state before test run

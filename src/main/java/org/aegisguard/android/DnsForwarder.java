@@ -338,7 +338,12 @@ public class DnsForwarder {
                             try {
                                 byte[] fresh = forwardUpstream(queryPayloadCopy, originalTxId, qType, qName);
                                 if (fresh != null && fresh.length >= 12 && (fresh[3] & 0x0F) == 0) {
-                                    putCache(cacheKey, fresh);
+                                    FilterEngine.MatchResult cnameMatch = DnsPacketParser.findBlockedCnameTarget(fresh);
+                                    if (cnameMatch != null && cnameMatch.isBlocked()) {
+                                        cache.remove(cacheKey);
+                                    } else {
+                                        putCache(cacheKey, fresh);
+                                    }
                                 }
                             } catch (Throwable ignored) {
                             } finally {
@@ -361,6 +366,16 @@ public class DnsForwarder {
         if (rawResponse != null && rawResponse.length >= 12) {
             int rcode = rawResponse[3] & 0x0F;
             if (rcode == 0) {
+                // CNAME Cloaking Unmasking (In-App Ad & Interstitial Neutralization)
+                FilterEngine.MatchResult cnameMatch = DnsPacketParser.findBlockedCnameTarget(rawResponse);
+                if (cnameMatch != null && cnameMatch.isBlocked()) {
+                    Log.i(TAG, "CNAME cloaked in-app ad unmasked: " + query.qName + " -> " + cnameMatch.rule);
+                    byte[] sinkholePayload = DnsPacketParser.createSinkholeDnsPayload(packet, length, query);
+                    putCache(cacheKey, sinkholePayload);
+                    AegisVpnService.recordAdBlockEvent(query.qName, "CNAME Cloaked Ad: " + cnameMatch.rule);
+                    return sinkholePayload;
+                }
+
                 putCache(cacheKey, rawResponse);
                 rawResponse[0] = (byte) ((query.txId >> 8) & 0xFF);
                 rawResponse[1] = (byte) (query.txId & 0xFF);

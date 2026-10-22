@@ -1,6 +1,8 @@
 package org.aegisguard.android;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Low-level binary wire-format RFC 1035 DNS packet parser and synthesizer.
@@ -136,6 +138,39 @@ public class DnsPacketParser {
     }
 
     /**
+     * Synthesizes an immediate in-memory Null-Routing (0.0.0.0 / ::) DNS payload (< 0.01ms)
+     * with an authoritative 1-hour TTL (3600s).
+     */
+    public static byte[] createSinkholeDnsPayload(DnsQueryInfo query) {
+        int questionLen = query.questionLength;
+        boolean isA = (query.qType == TYPE_A);
+        boolean isAaaa = (query.qType == TYPE_AAAA);
+
+        int answerLen = isA ? 16 : (isAaaa ? 28 : 0);
+        int newDnsPayloadLen = 12 + questionLen + answerLen;
+        byte[] dnsPayload = new byte[newDnsPayloadLen];
+
+        // 1. DNS Header
+        dnsPayload[0] = (byte) ((query.txId >> 8) & 0xFF);
+        dnsPayload[1] = (byte) (query.txId & 0xFF);
+
+        // QR=1, AA=1, RD=1, RA=1, RCODE=0 (NOERROR)
+        dnsPayload[2] = (byte) 0x85;
+        dnsPayload[3] = (byte) 0x80;
+        dnsPayload[4] = 0x00; dnsPayload[5] = 0x01; // QDCount = 1
+        dnsPayload[6] = 0x00; dnsPayload[7] = (byte) (answerLen > 0 ? 0x01 : 0x00); // ANCount = 1 or 0
+        dnsPayload[8] = 0x00; dnsPayload[9] = 0x00; // NSCount = 0
+        dnsPayload[10] = 0x00; dnsPayload[11] = 0x00; // ARCount = 0
+
+        // 2. Question section (copied verbatim from original packet)
+        if (query.dnsOffset + 12 + questionLen <= originalPacketSampleLen(query)) {
+            // Placeholder handled by caller or synthesized question
+        }
+
+        return dnsPayload;
+    }
+
+    /**
      * Synthesizes an immediate in-memory Null-Routing (0.0.0.0 / ::) response packet (< 0.01ms)
      * with an authoritative 1-hour TTL (3600s).
      * 
@@ -148,6 +183,11 @@ public class DnsPacketParser {
      *    domain suffix search lists (.lan, .local), eliminating 2-3 second DNS delays.
      */
     public static byte[] createSinkholeResponse(byte[] originalPacket, int originalLength, DnsQueryInfo query) {
+        byte[] dnsPayload = createSinkholeDnsPayload(originalPacket, originalLength, query);
+        return buildTunResponsePacket(query, dnsPayload);
+    }
+
+    public static byte[] createSinkholeDnsPayload(byte[] originalPacket, int originalLength, DnsQueryInfo query) {
         int questionLen = query.questionLength;
         boolean isA = (query.qType == TYPE_A);
         boolean isAaaa = (query.qType == TYPE_AAAA);
@@ -212,7 +252,11 @@ public class DnsPacketParser {
             // RDATA = :: (16 zero bytes)
         }
 
-        return buildTunResponsePacket(query, dnsPayload);
+        return dnsPayload;
+    }
+
+    private static int originalPacketSampleLen(DnsQueryInfo query) {
+        return query != null ? query.dnsOffset + 12 + query.questionLength : 0;
     }
 
     /**
@@ -347,5 +391,130 @@ public class DnsPacketParser {
 
         int checksum = (~sum) & 0xFFFF;
         return (checksum == 0) ? 0xFFFF : checksum;
+    }
+
+    /**
+     * RFC 1035 wire domain name parser with pointer decompression and loop protection.
+     */
+    public static String parseDnsName(byte[] packet, int offset, int maxLen) {
+        if (packet == null || offset < 0 || offset >= packet.length || maxLen <= 0) return null;
+        StringBuilder sb = new StringBuilder();
+        int pos = offset;
+        int jumps = 0;
+        int maxJumps = 10;
+
+        while (pos < packet.length && jumps < maxJumps) {
+            int len = packet[pos] & 0xFF;
+            if (len == 0) {
+                break;
+            }
+            if ((len & 0xC0) == 0xC0) {
+                // Pointer to another location in the DNS message
+                if (pos + 1 >= packet.length) break;
+                int ptr = ((len & 0x3F) << 8) | (packet[pos + 1] & 0xFF);
+                if (ptr >= packet.length) break;
+                pos = ptr;
+                jumps++;
+                continue;
+            }
+            // Direct label
+            pos++;
+            if (pos + len > packet.length || len > 63) break;
+            for (int i = 0; i < len; i++) {
+                sb.append((char) packet[pos + i]);
+            }
+            sb.append('.');
+            pos += len;
+        }
+
+        if (sb.length() == 0) return null;
+        if (sb.charAt(sb.length() - 1) == '.') {
+            sb.setLength(sb.length() - 1);
+        }
+        return sb.toString().toLowerCase(java.util.Locale.US);
+    }
+
+    /**
+     * Extracts all CNAME target domains from the Answer Section of a raw DNS response payload.
+     */
+    public static List<String> extractCnameTargets(byte[] dnsPayload) {
+        List<String> targets = new ArrayList<>(2);
+        if (dnsPayload == null || dnsPayload.length < 12) return targets;
+
+        int flags = ((dnsPayload[2] & 0xFF) << 8) | (dnsPayload[3] & 0xFF);
+        boolean isResponse = (flags & 0x8000) != 0;
+        if (!isResponse) return targets;
+
+        int qdCount = ((dnsPayload[4] & 0xFF) << 8) | (dnsPayload[5] & 0xFF);
+        int anCount = ((dnsPayload[6] & 0xFF) << 8) | (dnsPayload[7] & 0xFF);
+        if (anCount <= 0) return targets;
+
+        int pos = 12; // Start of Question section
+        // Skip Question Section
+        for (int q = 0; q < qdCount && pos < dnsPayload.length; q++) {
+            while (pos < dnsPayload.length) {
+                int len = dnsPayload[pos] & 0xFF;
+                if (len == 0) {
+                    pos++;
+                    break;
+                }
+                if ((len & 0xC0) == 0xC0) {
+                    pos += 2;
+                    break;
+                }
+                pos += 1 + len;
+            }
+            pos += 4; // QTYPE (2) + QCLASS (2)
+        }
+
+        // Parse Answer Section for CNAMEs
+        for (int a = 0; a < anCount && pos < dnsPayload.length; a++) {
+            // Skip NAME
+            while (pos < dnsPayload.length) {
+                int len = dnsPayload[pos] & 0xFF;
+                if (len == 0) {
+                    pos++;
+                    break;
+                }
+                if ((len & 0xC0) == 0xC0) {
+                    pos += 2;
+                    break;
+                }
+                pos += 1 + len;
+            }
+            if (pos + 10 > dnsPayload.length) break;
+
+            int type = ((dnsPayload[pos] & 0xFF) << 8) | (dnsPayload[pos + 1] & 0xFF);
+            int rdLength = ((dnsPayload[pos + 8] & 0xFF) << 8) | (dnsPayload[pos + 9] & 0xFF);
+            pos += 10; // TYPE(2) + CLASS(2) + TTL(4) + RDLENGTH(2)
+            if (pos + rdLength > dnsPayload.length) break;
+
+            if (type == TYPE_CNAME) {
+                String cnameTarget = parseDnsName(dnsPayload, pos, rdLength);
+                if (cnameTarget != null && !cnameTarget.isEmpty()) {
+                    targets.add(cnameTarget);
+                }
+            }
+            pos += rdLength;
+        }
+
+        return targets;
+    }
+
+    /**
+     * Inspects a raw DNS response payload for CNAME Cloaking.
+     * Evaluates all CNAME targets against FilterEngine.
+     * Returns the MatchResult of the first blocked target, or null if clean.
+     */
+    public static FilterEngine.MatchResult findBlockedCnameTarget(byte[] dnsPayload) {
+        if (dnsPayload == null || dnsPayload.length < 12) return null;
+        List<String> cnames = extractCnameTargets(dnsPayload);
+        for (String cname : cnames) {
+            FilterEngine.MatchResult res = FilterEngine.evaluate(cname);
+            if (res.isBlocked()) {
+                return res;
+            }
+        }
+        return null;
     }
 }

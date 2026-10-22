@@ -177,11 +177,19 @@ public class FilterEngine {
         "adnetwork", "adtrack", "adtracker", "adclient", "adtag", "adx", "appads", "app-ads", "app-ad",
         "banner", "banners", "bannerad", "bannerads", "banner-cdn", "banners-cdn", "inappads",
         "popup", "popups", "popunder", "popunders",
-        "interstitial", "interstitials", "displayads", "nativeads",
-        "pagead", "videoads", "servedby", "rewarded", "rewardedads",
+        "interstitial", "interstitials", "interstitialad", "interstitialads", "displayads", "nativeads",
+        "pagead", "videoads", "servedby", "rewarded", "rewardedads", "rewardedvideo", "rewarded-video",
         "mobileads", "mobilead", "admob", "adapi", "adsapi", "adanalytics",
         "sponsor", "sponsors", "sponsored", "sponsoredads",
         "promo", "promos", "promoted", "promotedads", "promotion", "promotions",
+        "fullscreen", "fullscreenad", "fullscreenads", "full-screen",
+        "appopen", "app-open", "appopenad", "appopenads",
+        "splash", "splashad", "splashads", "splash-ad",
+        "playable", "playablead", "playableads",
+        "mraid", "mraid-ad", "mraid-ads",
+        "preroll", "midroll", "postroll",
+        "admediation", "ad-mediation", "ad-auction", "ad-bidding",
+        "videomedia", "video-ad", "video-ads",
         "adclick", "adclicks"
     ));
 
@@ -308,25 +316,49 @@ public class FilterEngine {
             "adservice.google.co.in", "adservice.google.co.uk", "adservice.google.de", "adservice.google.fr",
             "adservice.google.es", "adservice.google.it", "adservice.google.ca", "adservice.google.com.au",
             "adservice.google.com.br", "adservice.google.co.jp", "adservice.google.ru",
-            "ads.unity.com", "unityads-api.unity3d.com",
+            "ads.unity.com", "unityads-api.unity3d.com", "unityads.net", "unityads-api.unity.com", "auction.unity.com",
+            "config.unity.com", "adserver.unity.com", "videocdn.unityads.unity3d.com", "customadcontent.unityads.unity3d.com",
+            "interactive-ads.unity3d.com", "gameads.unity3d.com",
             "array.applovin.com", "al-cdn.applovin.com", "assets.applvn.com", "al.applvn.com",
-            "rt.applvn.com", "bid.applovin.com", "img.applovin.com", "w.applovin.com",
+            "rt.applvn.com", "bid.applovin.com", "img.applovin.com", "w.applovin.com", "applovin.net", "applvn.net",
+            "res1.applovin.com", "res2.applovin.com", "res3.applovin.com", "vid.applovin.com", "video.applovin.com",
+            "playables.applovin.com", "al-events.applovin.com", "mediation.applovin.com", "sparklabs.applovin.com", "lionstudios.cc",
             "atom-data.io", "supersonicads-a.akamaihd.net", "ironsrc.mobi", "supersonic.mobi", "mobile.is.com",
-            "liftoff-ads.com", "ad-delivery.vungle.com", "init.vungle.com", "config.vungle.com",
-            "mtgbid.com", "mtgsec.com", "mintegral.cn",
-            "inmobicdn.net", "inmobicdn.com",
+            "ironsrc.net", "ironsource.net", "levelplay.ironsrc.com", "levelplay.is.com", "delivery.ironsrc.com", "events.ironsrc.com",
+            "media.ironsrc.com", "adquality.ironsrc.com",
+            "liftoff-ads.com", "ad-delivery.vungle.com", "init.vungle.com", "config.vungle.com", "vungle.cn",
+            "cdn-lb.vungle.com", "video.vungle.com", "streaming.vungle.com", "liftoff.com", "api.liftoff.io", "ad.liftoff.io", "delivery.liftoff.io",
+            "mtgbid.com", "mtgsec.com", "mintegral.cn", "mintegral.co", "mintegral.cc", "mobvista.net",
+            "cdn-adn-https.rayjump.com", "net.rayjump.com", "setting.rayjump.com", "analytics.rayjump.com", "video.rayjump.com",
+            "al-cdn.rayjump.com", "track.rayjump.com", "res.mintegral.com", "video.mintegral.com", "img.mintegral.com",
+            "cdn.mintegral.com", "android.mintegral.com", "sdk.mintegral.com", "api.mintegral.com", "om.mintegral.com",
+            "sdk-api.mintegral.com", "sdk-config.mintegral.com",
+            "inmobicdn.net", "inmobicdn.com", "inmobi.cn", "inmobi.org", "inmobisdk.com", "telemetry.inmobi.com", "adtracker.inmobi.com", "imadserver.inmobi.com",
             "pangolin-sdk.com", "pangle-ads.com", "pangolin.snssdk.com", "api-access.pangolin-sdk-toutiao.com",
-            "business-api.tiktok.com",
-            "fairbid.fyber.com", "adcolony.net", "dtignite.com",
-            "api.bigossp.com", "ads-api.moloco.com",
-            "c.startappservice.com", "events.startappservice.com",
+            "pangle.com", "pangleservice.com", "pangle-sdk.com", "pangolin-sdk-toutiao-c.com", "pangolin-sdk-toutiao-d.com",
+            "ad-delivery.byteoversea.com", "ad-asset.byteoversea.com", "sf16-fe-tos-sg.byteoversea.com", "sf-tb-sg.ibytedtos.com",
+            "sf16-static.i18n-pglstatp.com", "i18n-pglstatp.com", "pglstatp.com", "business-api.tiktok.com",
+            "fairbid.fyber.com", "adcolony.net", "adcolony.mobi", "dtignite.com", "adc3-launch.adcolony.com", "video.adcolony.com",
+            "ia.inner-active.mobi", "wv.inner-active.mobi", "mssdk.digitalturbine.com", "marketplace.digitalturbine.com",
+            "api.bigossp.com", "bigossp.net", "bigoads.com", "bigo-ads.com", "ads.bigo.sg", "ads.bigo.tv", "sdk.bigossp.com", "res.bigossp.com",
+            "ads-api.moloco.com",
+            "c.startappservice.com", "events.startappservice.com", "init.startappservice.com", "d.startappservice.com", "req.startappservice.com",
+            "info.startappservice.com", "va.startappservice.com", "video.startappservice.com", "ad.startappservice.com",
+            "chartboost.net", "auction.chartboost.com", "webview.chartboost.com", "tapjoy.net", "offerwall.tapjoy.com", "video.tapjoy.com",
+            "mobile.yandexadexchange.net", "bs.yandex.ru", "tradplus.com", "topon.com", "adtiming.net", "adtiming.cn", "adjoe.io", "ads.hyprmx.com",
+            "bidmachine.com", "assets.appodeal.com", "mediation.appodeal.com",
+            "gdt.qq.com", "mi.gdt.qq.com", "win.gdt.qq.com", "t.gdt.qq.com", "v.gdt.qq.com", "pgdt.gtimg.cn",
+            "mobads.baidu.com", "mobads-logs.baidu.com", "wn.pos.baidu.com", "adx.adsmogo.com", "adsmogo.com", "domob.cn", "domob.org", "adview.cn",
+            "mraid.org", "playable.amap.com", "playableads.com", "playable.com",
+            "displayvideo.google.com", "fundingchoicesmessages.google.com", "app-ads-txt.google.com", "admanager.google.com",
+            "g.doubleclick.net", "static.doubleclick.net", "m.doubleclick.net", "ep2.adtrafficquality.google", "ep3.adtrafficquality.google", "ep4.adtrafficquality.google",
             "aps.amazon.com",
             "adserver.truecaller.com", "ads.truecaller.com", "ads-sdk.truecaller.com", "tcads.truecaller.com",
             "appier.net", "ai.appier.net", "appodeal.com", "appodealx.com", "pollfish.com", "api.pollfish.com", "yango.com",
             "samsungads.com", "gfts.samsungadhub.com", "samsungadhub.com",
-            "ads.heytap.com", "ad.heytap.com",
-            "ads.huawei.com", "adx.huawei.com", "adservice.huawei.com",
-            "ad.xiaomi.com", "ad1.xiaomi.com",
+            "ads.heytap.com", "ad.heytap.com", "adsfs.heytap.com", "adfs.heytap.com",
+            "ads.huawei.com", "adx.huawei.com", "adservice.huawei.com", "petalads.com", "ads.petalmail.com", "adcontent.huawei.com",
+            "ad.xiaomi.com", "ad1.xiaomi.com", "ad.intl.xiaomi.com", "data.ad.xiaomi.com",
             "ad.vivo.com", "ads.vivo.com"
         };
         Collections.addAll(AD_DOMAINS, ads);
@@ -943,6 +975,14 @@ public class FilterEngine {
                             label.startsWith("mobilead") || label.startsWith("mobile-ad") ||
                             label.startsWith("videoad") || label.startsWith("video-ad") ||
                             label.startsWith("nativead") || label.startsWith("native-ad") ||
+                            label.startsWith("interstitial") || label.startsWith("rewarded") ||
+                            label.startsWith("fullscreen") || label.startsWith("full-screen") ||
+                            label.startsWith("appopen") || label.startsWith("app-open") ||
+                            label.startsWith("splash") || label.startsWith("playable") ||
+                            label.startsWith("mraid") || label.startsWith("preroll") ||
+                            label.startsWith("midroll") || label.startsWith("postroll") ||
+                            label.startsWith("admediation") || label.startsWith("ad-mediation") ||
+                            label.startsWith("ad-auction") || label.startsWith("ad-bidding") ||
                             label.startsWith("sponsoredad") || label.startsWith("promotedad") ||
                             label.startsWith("sponsor-") || label.startsWith("sponsored-") ||
                             label.startsWith("promo-") || label.startsWith("promoted-") ||
@@ -957,7 +997,13 @@ public class FilterEngine {
                         domain.startsWith("adcdn.") || domain.startsWith("ads-cdn.") ||
                         domain.startsWith("admanager.") || domain.startsWith("mobileads.") ||
                         domain.startsWith("videoads.") || domain.startsWith("interstitial.") ||
-                        domain.startsWith("rewarded.") || domain.startsWith("adtrack.") ||
+                        domain.startsWith("rewarded.") || domain.startsWith("fullscreen.") ||
+                        domain.startsWith("full-screen.") || domain.startsWith("appopen.") ||
+                        domain.startsWith("app-open.") || domain.startsWith("splash.") ||
+                        domain.startsWith("splashad.") || domain.startsWith("playable.") ||
+                        domain.startsWith("playableads.") || domain.startsWith("mraid.") ||
+                        domain.startsWith("preroll.") || domain.startsWith("midroll.") ||
+                        domain.startsWith("postroll.") || domain.startsWith("adtrack.") ||
                         domain.startsWith("adtracker.") || domain.startsWith("adx.") ||
                         domain.startsWith("appads.") || domain.startsWith("app-ads.") ||
                         domain.startsWith("bannerads.") || domain.startsWith("inappads.") ||
