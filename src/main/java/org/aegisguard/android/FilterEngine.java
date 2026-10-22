@@ -479,6 +479,113 @@ public class FilterEngine {
         Collections.addAll(CRYPTOMINER_DOMAINS, cryptominers);
     }
 
+    public static final Set<String> GLOBAL_PROTECTED_ROOTS = new HashSet<>(Arrays.asList(
+        // Search & Knowledge
+        "google.com", "google.co.in", "youtube.com", "wikipedia.org", "wikimedia.org", "wikidata.org", "archive.org",
+        "imdb.com", "rottentomatoes.com", "wolframalpha.com", "duckduckgo.com", "bing.com", "yahoo.com", "ecosia.org",
+        "startpage.com", "qwant.com", "searx.me", "baidu.com", "yandex.com",
+        // Messaging & Social
+        "facebook.com", "fb.com", "fbcdn.net", "instagram.com", "cdninstagram.com", "threads.net", "whatsapp.com",
+        "whatsapp.net", "wa.me", "telegram.org", "t.me", "telesco.pe", "telegram-cdn.org", "signal.org",
+        "whispersystems.org", "discord.com", "discord.gg", "discordapp.com", "twitter.com", "x.com", "twimg.com",
+        "reddit.com", "redd.it", "redditmedia.com", "redditstatic.com", "linkedin.com", "licdn.com", "pinterest.com",
+        "quora.com", "medium.com", "substack.com", "tumblr.com", "snapchat.com", "sc-cdn.net", "zoom.us", "slack.com",
+        "skype.com", "teams.microsoft.com",
+        // Indian & Global News Portals
+        "thehindu.com", "indiatimes.com", "ndtv.com", "hindustantimes.com", "indianexpress.com", "livemint.com",
+        "moneycontrol.com", "economictimes.com", "manoramaonline.com", "mathrubhumi.com", "eenadu.net", "abplive.com",
+        "bhaskar.com", "jagran.com", "dailyhunt.in", "inshorts.com", "bbc.com", "bbc.co.uk", "cnn.com", "reuters.com",
+        "nytimes.com", "theguardian.com", "forbes.com", "bloomberg.com", "ad.nl", "nu.nl", "telegraaf.nl", "nos.nl",
+        "bild.de", "spiegel.de", "zeit.de", "lemonde.fr", "lefigaro.fr", "elpais.com", "elmundo.es",
+        // Government & Public Sector
+        "gov.in", "nic.in", "gov", "edu", "ac.in", "irctc.co.in", "irctc.com", "uidai.gov.in", "incometax.gov.in",
+        "passportindia.gov.in", "digilocker.gov.in", "parivahan.gov.in", "epfindia.gov.in", "india.gov.in", "indiapost.gov.in",
+        // Banking & Financial Gateways
+        "hdfcbank.com", "icicibank.com", "sbi.co.in", "onlinesbi.sbi", "axisbank.com", "kotak.com", "pnbindia.in",
+        "bankofbaroda.in", "canarabank.com", "unionbankofindia.co.in", "indusind.com", "idfcfirstbank.com", "yesbank.in",
+        "federalbank.co.in", "zerodha.com", "groww.in", "angelone.in", "upstox.com", "cred.club", "kuvera.in", "navi.com",
+        "bharatpe.com", "npci.org.in", "bhimupi.org.in", "paypal.com", "stripe.com", "razorpay.com", "paytm.com",
+        "phonepe.com", "payu.in", "cashfree.com", "visa.com", "mastercard.com", "americanexpress.com", "chase.com",
+        "bankofamerica.com", "wellsfargo.com",
+        // Parcel Logistics & Travel
+        "delhivery.com", "bluedart.com", "dtdc.in", "trackon.in", "ekartlogistics.com", "shadowfax.in", "dhl.com",
+        "fedex.com", "ups.com", "shiprocket.in", "aftership.com", "tracker.gg", "redbus.in", "makemytrip.com",
+        "goibibo.com", "yatra.com", "cleartrip.com", "easemytrip.com", "abhibus.com", "rapido.bike", "uber.com",
+        "ola.cabs", "olacabs.com", "nammayatri.in", "booking.com", "agoda.com", "expedia.com", "tripadvisor.com",
+        "airbnb.com", "oyorooms.com",
+        // E-Commerce & Daily Essentials
+        "amazon.com", "amazon.in", "media-amazon.com", "flipkart.com", "flixcart.com", "myntra.com", "myntassets.com",
+        "ajio.com", "meesho.com", "tatacliq.com", "nykaa.com", "jiomart.com", "swiggy.com", "zomato.com", "zepto.now",
+        "blinkit.com", "bigbasket.com", "ebay.com", "aliexpress.com", "walmart.com", "target.com", "etsy.com", "temu.com",
+        "shein.com", "shopee.com", "lazada.com", "tokopedia.com", "bookmyshow.com",
+        // Streaming & Entertainment
+        "hotstar.com", "hotstarcdn.com", "starott.com", "jiocinema.com", "sonyliv.com", "zee5.com", "netflix.com",
+        "primevideo.com", "disneyplus.com", "spotify.com", "twitch.tv", "vimeo.com", "dailymotion.com", "soundcloud.com",
+        "gaana.com", "wynk.in", "jiosaavn.com", "cricbuzz.com", "espncricinfo.com",
+        // Cloud & Web Infrastructure
+        "apple.com", "icloud.com", "microsoft.com", "office.com", "windows.net", "github.com", "github.io",
+        "githubusercontent.com", "gitlab.com", "stackoverflow.com", "openai.com", "chatgpt.com", "claude.ai",
+        "anthropic.com", "cloudflare.com", "cloudflare.net", "fastly.net", "akamaized.net", "akamaihd.net", "akamai.net",
+        "jsdelivr.net", "unpkg.com", "cdnjs.cloudflare.com", "docker.com", "npmjs.com", "pypi.org", "vercel.app",
+        "netlify.app", "render.com", "fly.io", "supabase.com", "supabase.co", "firebase.google.com", "firebaseio.com",
+        // Education & Reference
+        "coursera.org", "edx.org", "udemy.com", "khanacademy.org", "duolingo.com", "geeksforgeeks.org", "w3schools.com"
+    ));
+
+    public static boolean isGlobalProtectedRoot(String rawDomain) {
+        if (rawDomain == null) return false;
+        String domain = rawDomain.trim().toLowerCase(java.util.Locale.US);
+        if (domain.endsWith(".")) {
+            domain = domain.substring(0, domain.length() - 1);
+        }
+        if (GLOBAL_PROTECTED_ROOTS.contains(domain)) {
+            return true;
+        }
+        int nextDot = domain.indexOf('.');
+        while (nextDot > 0) {
+            String parent = domain.substring(nextDot + 1);
+            if (GLOBAL_PROTECTED_ROOTS.contains(parent)) {
+                // Never protect explicit advertising endpoints even if hosted on protected parent
+                if (domain.contains("adservice.google") || domain.contains("googleads.") ||
+                    domain.contains("doubleclick.net") || domain.contains("pagead2.") ||
+                    domain.contains("googletagservices.") || domain.contains("partnerad.") ||
+                    domain.contains("ads.youtube.com") || domain.contains("ad.youtube.com") ||
+                    domain.contains("youtubeads.") || domain.contains("imasdk.googleapis.com") ||
+                    domain.contains("ad-delivery.") || domain.contains("pixel.facebook.com") ||
+                    domain.contains("an.facebook.com") || domain.contains("ads.tiktok.com") ||
+                    domain.contains("ads.twitter.com") || domain.contains("ads.reddit.com")) {
+                    return false;
+                }
+                return true;
+            }
+            nextDot = domain.indexOf('.', nextDot + 1);
+        }
+        return false;
+    }
+
+    public static boolean isProtectedWebsite(String rawDomain) {
+        if (rawDomain == null) return false;
+        String domain = rawDomain.trim().toLowerCase(java.util.Locale.US);
+        if (domain.endsWith(".")) {
+            domain = domain.substring(0, domain.length() - 1);
+        }
+        if (isGlobalProtectedRoot(domain) || isEssentialService(domain)) {
+            return true;
+        }
+        // Protect all Dutch news (.ad.nl) and government active directory (.ad.*.gov.*)
+        if (domain.equals("ad.nl") || domain.endsWith(".ad.nl") || domain.equals("ad.si") || domain.endsWith(".ad.si")) {
+            return true;
+        }
+        // Protect all legitimate parcel courier tracking
+        if (domain.startsWith("track.") || domain.startsWith("tracking.") || domain.startsWith("tracker.")) {
+            String parent = domain.substring(domain.indexOf('.') + 1);
+            if (!AD_DOMAINS.contains(parent) && !TRACKER_DOMAINS.contains(parent)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Bulletproof Whitelist Protection:
      * Guarantees that essential communication, authentic media streaming CDNs,
@@ -897,9 +1004,12 @@ public class FilterEngine {
         }
 
         // 3.5 DYNAMIC CLOUD THREAT SINKHOLE:
-        // Evaluates dynamically downloaded zero-day ad & malware signatures with Zero-Breakage Guarantee.
-        // Strictly exact-match only: A dynamic rule can NEVER sinkhole child or parent subdomains of a real website!
+        // Evaluates dynamically downloaded zero-day ad & malware signatures with 100% Zero-Breakage Guarantee.
+        // A dynamic rule can NEVER sinkhole any real website, web platform, or essential service!
         if (DYNAMIC_DOMAINS.contains(domain)) {
+            if (isProtectedWebsite(domain) || isEssentialService(domain)) {
+                return new MatchResult(Decision.CLEAN, "Protected Web Asset", "Whitelisted");
+            }
             return new MatchResult(Decision.BLOCK_AD, "Global Threat Feed (Auto-Updated)", "Aegis_Dynamic_Cloud:" + domain);
         }
 

@@ -444,7 +444,9 @@ public class SettingsActivity extends Activity {
                         Toast.makeText(SettingsActivity.this, "5-Hour Threat Auto-Sync Activated", Toast.LENGTH_SHORT).show();
                     } else {
                         DynamicFilterManager.cancelPeriodicUpdate(SettingsActivity.this);
-                        Toast.makeText(SettingsActivity.this, "5-Hour Threat Auto-Sync Paused", Toast.LENGTH_SHORT).show();
+                        DynamicFilterManager.clearDynamicRules(SettingsActivity.this);
+                        updateThreatIntelligenceDisplay();
+                        Toast.makeText(SettingsActivity.this, "5-Hour Threat Auto-Sync Paused (Dynamic Rules Cleared)", Toast.LENGTH_SHORT).show();
                     }
                 }
             });

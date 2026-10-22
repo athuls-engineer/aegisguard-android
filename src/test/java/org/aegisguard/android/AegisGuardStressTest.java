@@ -256,11 +256,19 @@ public class AegisGuardStressTest {
     private static void testCategory3FilterEngineClassification(int count) {
         System.out.println("[Category 3/5] Running 40,000 FilterEngine Accuracy & Whitelist Immunity Scenarios...");
 
-        // Setup simulated dynamic threat feeds
+        // Setup simulated dynamic threat feeds (including hostile injections of real websites to test immunity)
         FilterEngine.DYNAMIC_DOMAINS.clear();
         for (int d = 0; d < 5000; d++) {
             FilterEngine.DYNAMIC_DOMAINS.add("cloud-threat-" + d + ".malwaredomain.com");
         }
+        // Adversarial community list injections that must NEVER break websites:
+        FilterEngine.DYNAMIC_DOMAINS.add("track.delhivery.com");
+        FilterEngine.DYNAMIC_DOMAINS.add("track.bluedart.com");
+        FilterEngine.DYNAMIC_DOMAINS.add("track.fedex.com");
+        FilterEngine.DYNAMIC_DOMAINS.add("ad.nl");
+        FilterEngine.DYNAMIC_DOMAINS.add("thehindu.com");
+        FilterEngine.DYNAMIC_DOMAINS.add("sbi.co.in");
+        FilterEngine.DYNAMIC_DOMAINS.add("irctc.co.in");
 
         // Essential services & captive portals that MUST NEVER be blocked
         String[] essentialRoots = new String[] {
@@ -359,11 +367,21 @@ public class AegisGuardStressTest {
                         throw new IllegalStateException("Heuristic in-app ad subdomain was NOT blocked: " + queryDomain);
                     }
                 } else if (subType == 3) {
-                    // 5,000 Dynamic Cloud Threat Feeds
-                    String dynamicDomain = "cloud-threat-" + (i % 5000) + ".malwaredomain.com";
-                    FilterEngine.MatchResult res = FilterEngine.evaluate(dynamicDomain);
-                    if (!res.isBlocked()) {
-                        throw new IllegalStateException("Dynamic threat domain was NOT blocked: " + dynamicDomain);
+                    // 5,000 Dynamic Cloud Threat Feeds & Zero-Website-Breakage Verification
+                    if (i % 7 == 0) {
+                        // Crucial test: Ensure protected domains inside DYNAMIC_DOMAINS are NEVER blocked
+                        String[] testInjections = { "track.delhivery.com", "track.bluedart.com", "track.fedex.com", "ad.nl", "thehindu.com", "sbi.co.in", "irctc.co.in" };
+                        String protectedTarget = testInjections[(i / 7) % testInjections.length];
+                        FilterEngine.MatchResult res = FilterEngine.evaluate(protectedTarget);
+                        if (res.isBlocked()) {
+                            throw new IllegalStateException("CRITICAL BREAKAGE: Protected domain was blocked by dynamic rule: " + protectedTarget);
+                        }
+                    } else {
+                        String dynamicDomain = "cloud-threat-" + (i % 5000) + ".malwaredomain.com";
+                        FilterEngine.MatchResult res = FilterEngine.evaluate(dynamicDomain);
+                        if (!res.isBlocked()) {
+                            throw new IllegalStateException("Dynamic threat domain was NOT blocked: " + dynamicDomain);
+                        }
                     }
                 } else if (subType == 4) {
                     // 5,000 Custom Whitelist Priority Overrides (User can unblock even ad roots)

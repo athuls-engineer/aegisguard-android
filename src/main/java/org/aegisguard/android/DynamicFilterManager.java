@@ -50,45 +50,17 @@ public class DynamicFilterManager {
 
     // 5 Hours = 5 * 60 * 60 * 1000 milliseconds
     public static final long UPDATE_INTERVAL_MS = 5 * 60 * 60 * 1000L;
-    private static final String CACHE_FILE_NAME = "aegis_dynamic_threat_cache_v306.txt";
+    private static final String CACHE_FILE_NAME = "aegis_dynamic_threat_cache_v313.txt";
     private static final int MAX_DYNAMIC_RULES = 35000; // Optimal memory bounds for low-end hardware
 
     // Curated Global Threat Intelligence Feeds (Strictly validated to avoid false positives and site breakage)
     private static final String[] THREAT_FEED_URLS = new String[] {
-        // Peter Lowe's gold standard curated adserver list (Zero false positives, strictly verified ad networks)
-        "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext",
-        // AdAway official mobile curated ad hosts
-        "https://adaway.org/hosts.txt"
+        // Peter Lowe's gold standard curated adserver list (Zero false positives, strictly verified ad networks only)
+        "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext"
     };
 
-    private static final Set<String> GLOBAL_PROTECTED_ROOTS = new HashSet<>(java.util.Arrays.asList(
-        "google.com", "youtube.com", "facebook.com", "instagram.com", "whatsapp.com", "whatsapp.net",
-        "twitter.com", "x.com", "reddit.com", "redditstatic.com", "amazon.com", "amazon.in",
-        "flipkart.com", "myntra.com", "ajio.com", "meesho.com", "aliexpress.com", "ebay.com",
-        "apple.com", "icloud.com", "microsoft.com", "github.com", "gitlab.com", "wikipedia.org",
-        "netflix.com", "hotstar.com", "disneyplus.com", "spotify.com", "telegram.org", "t.me",
-        "discord.com", "discord.gg", "zoom.us", "slack.com", "linkedin.com", "pinterest.com",
-        "quora.com", "medium.com", "substack.com", "vimeo.com", "dailymotion.com",
-        "bit.ly", "tinyurl.com", "linktr.ee", "t.co", "cutt.ly", "booking.com", "airbnb.com",
-        "cloudflare.com", "fastly.net", "akamaihd.net", "akamaized.net", "jsdelivr.net", "unpkg.com",
-        "cdnjs.cloudflare.com", "paypal.com", "stripe.com", "paytm.com", "phonepe.com", "razorpay.com",
-        "uber.com", "ola.cabs", "swiggy.com", "zomato.com", "zepto.now", "blinkit.com"
-    ));
-
     public static boolean isGlobalProtectedRoot(String domain) {
-        if (domain == null) return false;
-        String d = domain.toLowerCase(Locale.US);
-        if (GLOBAL_PROTECTED_ROOTS.contains(d)) return true;
-        for (String root : GLOBAL_PROTECTED_ROOTS) {
-            if (d.equals(root) || d.endsWith("." + root)) {
-                // If it's a known service, only allow blocking if it is an explicit third-party ad tracker
-                if (d.contains("adservice.google") || d.contains("doubleclick.net") || d.contains("pagead2")) {
-                    return false;
-                }
-                return true;
-            }
-        }
-        return false;
+        return FilterEngine.isGlobalProtectedRoot(domain);
     }
 
     private static final Set<String> FUNCTIONAL_SUBDOMAIN_PREFIXES = new HashSet<>(java.util.Arrays.asList(
@@ -97,25 +69,36 @@ public class DynamicFilterManager {
         "payments", "shop", "store", "app", "mobile", "portal", "cloud", "edge", "download", "downloads",
         "secure", "mail", "email", "help", "support", "docs", "gateway", "connect", "status", "service",
         "services", "my", "account", "accounts", "user", "users", "dashboard", "client", "clients",
-        "node", "srv", "server", "prod", "main", "stream", "video", "audio", "voice", "rtc", "web"
+        "node", "srv", "server", "prod", "main", "stream", "video", "audio", "voice", "rtc", "web",
+        "track", "tracking", "tracker", "stats", "pixel", "order", "orders", "delivery"
     ));
 
     /**
      * Bulletproof Ingestion Validator:
      * Guarantees that dynamically downloaded rules NEVER contain functional website assets,
-     * apex website domains, educational/government TLDs, or essential services.
+     * apex website domains, educational/government TLDs, parcel logistics, or essential services.
      */
     public static boolean isSafeDynamicDomain(String domain) {
         if (domain == null || domain.length() < 4) return false;
         String d = domain.toLowerCase(Locale.US);
-        if (FilterEngine.isEssentialService(d) || isGlobalProtectedRoot(d)) {
+        if (FilterEngine.isEssentialService(d) || FilterEngine.isProtectedWebsite(d) || FilterEngine.isGlobalProtectedRoot(d)) {
+            return false;
+        }
+
+        // Never ingest parcel logistics or postal services (delhivery, bluedart, dhl, fedex, indiapost)
+        if (d.contains(".track.") || d.startsWith("track.") || d.startsWith("tracking.") || d.startsWith("tracker.")) {
+            return false;
+        }
+
+        // Never ingest Dutch/European news (ad.nl) or corporate active directory (.ad.)
+        if (d.equals("ad.nl") || d.endsWith(".ad.nl") || d.equals("ad.si") || d.endsWith(".ad.si") || d.contains(".ad.")) {
             return false;
         }
 
         // Reject critical public, government, educational, banking & infrastructure TLDs
         if (d.endsWith(".edu") || d.endsWith(".gov") || d.endsWith(".mil") ||
             d.endsWith(".gov.in") || d.endsWith(".nic.in") || d.endsWith(".ac.uk") ||
-            d.endsWith(".gov.uk") || d.endsWith(".bank") || d.endsWith(".edu.in")) {
+            d.endsWith(".gov.uk") || d.endsWith(".bank") || d.endsWith(".edu.in") || d.endsWith(".ac.in")) {
             return false;
         }
 
@@ -135,11 +118,14 @@ public class DynamicFilterManager {
 
         // Strict Dynamic Ad Token Requirement:
         // A dynamically pulled domain MUST have an unambiguous ad/telemetry marker to prevent collateral site breakage
-        boolean hasAdToken = d.contains(".ad.") || d.contains(".ads.") || d.contains(".adserver.") ||
+        boolean hasAdToken = d.contains(".ads.") || d.contains(".adserver.") ||
                              d.contains(".adservice.") || d.contains(".adsystem.") || d.contains(".doubleclick.") ||
-                             d.contains(".telemetry.") || d.contains(".pixel.") || d.contains(".track.") ||
-                             d.contains(".tracker.") || d.contains("admob") || d.contains("appads") ||
-                             d.contains("inappads") || d.contains("bannerads") || d.contains("popunder");
+                             d.contains(".telemetry.") || d.contains(".tracker.") ||
+                             d.contains("admob") || d.contains("appads") ||
+                             d.contains("inappads") || d.contains("bannerads") || d.contains("popunder") ||
+                             d.contains("applovin") || d.contains("unityads") || d.contains("ironsrc") ||
+                             d.contains("mintegral") || d.contains("vungle") || d.contains("chartboost") ||
+                             d.contains("tapjoy") || d.contains("bigossp") || d.contains("startapp");
         if (!hasAdToken) {
             return false;
         }
@@ -163,23 +149,27 @@ public class DynamicFilterManager {
         if (context == null) return;
         final Context appContext = context.getApplicationContext();
 
-        // 1. Fast asynchronous load of cached dynamic rules into FilterEngine
-        sExecutor.execute(new Runnable() {
-            @Override
-            public void run() {
-                loadCachedRules(appContext);
-            }
-        });
-
-        // 2. Schedule recurring 5-hour auto-update alarm ONLY IF user explicitly enabled it
         SharedPreferences sp = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         boolean autoUpdateEnabled = sp.getBoolean(KEY_AUTO_UPDATE, false);
+
         if (autoUpdateEnabled) {
+            // Fast asynchronous load of verified cached dynamic rules into FilterEngine
+            sExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    loadCachedRules(appContext);
+                }
+            });
+
+            // Schedule recurring 5-hour auto-update alarm
             schedulePeriodicUpdate(appContext);
             long lastUpdate = sp.getLong(KEY_LAST_UPDATE, 0);
             if (System.currentTimeMillis() - lastUpdate > UPDATE_INTERVAL_MS) {
                 updateFiltersAsync(appContext, null);
             }
+        } else {
+            // When auto-update is off, ensure only minimal verified bootstrap signatures are active
+            initDefaultBootstrapRules();
         }
     }
 
@@ -228,6 +218,32 @@ public class DynamicFilterManager {
         } catch (Throwable t) {
             Log.w(TAG, "Could not cancel AlarmManager update: " + t.getMessage());
         }
+    }
+
+    /**
+     * Clears all dynamic rules when auto-update is switched off,
+     * resetting to safe minimal bootstrap rules and flushing DNS cache.
+     */
+    public static void clearDynamicRules(Context context) {
+        FilterEngine.DYNAMIC_DOMAINS.clear();
+        initDefaultBootstrapRules();
+        if (context != null) {
+            try {
+                File file = new File(context.getFilesDir(), CACHE_FILE_NAME);
+                if (file.exists()) {
+                    file.delete();
+                }
+                SharedPreferences sp = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                sp.edit()
+                    .remove(KEY_LAST_UPDATE)
+                    .putInt(KEY_DYNAMIC_COUNT, FilterEngine.DYNAMIC_DOMAINS.size())
+                    .apply();
+            } catch (Throwable t) {
+                Log.w(TAG, "Error clearing dynamic rules file: " + t.getMessage());
+            }
+        }
+        DnsForwarder.clearCacheGlobal();
+        Log.i(TAG, "Dynamic threat rules cleared and DNS cache flushed.");
     }
 
     /**
@@ -461,6 +477,8 @@ public class DynamicFilterManager {
                 if (legacy1.exists()) legacy1.delete();
                 File legacy2 = new File(context.getFilesDir(), "aegis_dynamic_threat_cache_v303.txt");
                 if (legacy2.exists()) legacy2.delete();
+                File legacy3 = new File(context.getFilesDir(), "aegis_dynamic_threat_cache_v306.txt");
+                if (legacy3.exists()) legacy3.delete();
             } catch (Throwable ignored) {}
 
             File file = new File(context.getFilesDir(), CACHE_FILE_NAME);
