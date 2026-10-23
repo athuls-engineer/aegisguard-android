@@ -359,7 +359,18 @@ public class FilterEngine {
             "ads.heytap.com", "ad.heytap.com", "adsfs.heytap.com", "adfs.heytap.com",
             "ads.huawei.com", "adx.huawei.com", "adservice.huawei.com", "petalads.com", "ads.petalmail.com", "adcontent.huawei.com",
             "ad.xiaomi.com", "ad1.xiaomi.com", "ad.intl.xiaomi.com", "data.ad.xiaomi.com",
-            "ad.vivo.com", "ads.vivo.com"
+            "ad.vivo.com", "ads.vivo.com",
+            // In-Game 3D Virtual Ad Networks & Mobile Gaming Mediation Networks
+            "bidstack.com", "api.bidstack.com", "adserver.bidstack.com", "delivery.bidstack.com",
+            "anzu.io", "api.anzu.io", "sdk.anzu.io",
+            "adverty.com", "ads.adverty.com",
+            "gadsme.com", "api.gadsme.com",
+            "frameplay.gg", "api.frameplay.gg",
+            "greedygame.com", "api.greedygame.com", "engine.greedygame.com", "ggnet.in",
+            "pokkt.com", "delivery.pokkt.com", "api.pokkt.com",
+            "vserv.mobi", "vserv.com",
+            "pubscale.com", "api.pubscale.com",
+            "revx.io", "affle.com"
         };
         Collections.addAll(AD_DOMAINS, ads);
 
