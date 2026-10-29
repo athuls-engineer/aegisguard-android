@@ -1,7 +1,8 @@
 import xml.etree.ElementTree as ET
 import os, re
 
-res_dir = r"C:\Users\athul_nuy2ni9\.gemini\antigravity\scratch\aegisguard-android\src\main\res"
+repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+res_dir = os.path.join(repo_root, "src", "main", "res")
 layout_path = os.path.join(res_dir, "layout", "activity_main.xml")
 
 with open(layout_path, "r", encoding="utf-8") as f:

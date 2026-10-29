@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 $jdk = "C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot\bin"
-$androidJar = "C:\Users\athul_nuy2ni9\AppData\Local\Android\Sdk\platforms\android-36-ext19\android.jar"
+$androidJar = if ($env:ANDROID_HOME) { "$env:ANDROID_HOME\platforms\android-36-ext19\android.jar" } else { "$env:LOCALAPPDATA\Android\Sdk\platforms\android-36-ext19\android.jar" }
 
 Write-Host "=== Compiling Stress Test Suite with javac 17 ===" -ForegroundColor Cyan
 New-Item -ItemType Directory -Path 'build\test_classes' -Force | Out-Null

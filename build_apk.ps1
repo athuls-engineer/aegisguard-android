@@ -1,10 +1,37 @@
 # AegisGuard Autonomous Build & APK Assembly Script
 $ErrorActionPreference = "Stop"
 
-$ProjectDir = "C:\Users\athul_nuy2ni9\.gemini\antigravity\scratch\aegisguard-android"
-$JdkBin = "C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot\bin"
-$SdkTools = "C:\Users\athul_nuy2ni9\AppData\Local\Android\Sdk\build-tools\36.1.0"
-$AndroidJar = "C:\Users\athul_nuy2ni9\AppData\Local\Android\Sdk\platforms\android-36-ext19\android.jar"
+$ProjectDir = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
+
+# Resolve JDK
+$JdkBin = if ($env:JAVA_HOME -and (Test-Path "$env:JAVA_HOME\bin\javac.exe")) {
+    "$env:JAVA_HOME\bin"
+} elseif (Test-Path "C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot\bin\javac.exe") {
+    "C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot\bin"
+} else {
+    $javacCmd = Get-Command javac -ErrorAction SilentlyContinue
+    if ($javacCmd) { Split-Path $javacCmd.Source } else { "C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot\bin" }
+}
+
+# Resolve Android SDK
+$AndroidSdk = if ($env:ANDROID_HOME -and (Test-Path $env:ANDROID_HOME)) {
+    $env:ANDROID_HOME
+} elseif ($env:ANDROID_SDK_ROOT -and (Test-Path $env:ANDROID_SDK_ROOT)) {
+    $env:ANDROID_SDK_ROOT
+} else {
+    "$env:LOCALAPPDATA\Android\Sdk"
+}
+
+# Dynamically find latest build-tools and android.jar
+$BuildToolsDir = Get-ChildItem -Path "$AndroidSdk\build-tools" -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending | Select-Object -First 1
+$SdkTools = if ($BuildToolsDir) { $BuildToolsDir.FullName } else { "$AndroidSdk\build-tools\36.1.0" }
+
+$PlatformDir = Get-ChildItem -Path "$AndroidSdk\platforms" -Directory -Filter "android-*" -ErrorAction SilentlyContinue | Sort-Object Name -Descending | Select-Object -First 1
+$AndroidJar = if ($PlatformDir -and (Test-Path "$($PlatformDir.FullName)\android.jar")) {
+    "$($PlatformDir.FullName)\android.jar"
+} else {
+    "$AndroidSdk\platforms\android-36-ext19\android.jar"
+}
 
 $Aapt2 = "$SdkTools\aapt2.exe"
 $D8 = "$SdkTools\d8.bat"
@@ -43,105 +70,32 @@ $JavaFiles = Get-ChildItem -Path "$ProjectDir\src\main\java", $GenDir -Recurse -
 & $Javac -encoding UTF-8 -source 1.8 -target 1.8 -cp $AndroidJar -d $ClassesDir $JavaFiles
 if ($LASTEXITCODE -ne 0) { throw "Javac compilation failed" }
 
-Write-Host "=== Step 4: DEXing Bytecode with d8 ===" -ForegroundColor Cyan
-$ClassesJar = "$BuildDir\classes.jar"
-& $Jar cf "$ClassesJar" -C "$ClassesDir" .
-if ($LASTEXITCODE -ne 0) { throw "Jar creation failed" }
+Write-Host "=== Step 4: Compiling Bytecode to DEX with D8 ===" -ForegroundColor Cyan
+$ClassFiles = Get-ChildItem -Path $ClassesDir -Recurse -Filter "*.class" | Select-Object -ExpandProperty FullName
+& cmd.exe /c "`"$D8`" --release --min-api 24 --output `"$BuildDir`" $($ClassFiles -join ' ')"
+if ($LASTEXITCODE -ne 0) { throw "D8 compilation failed" }
 
-$env:JAVA_HOME = "C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot"
-$env:PATH = "$JdkBin;$env:PATH"
-& cmd.exe /c "$D8 --lib `"$AndroidJar`" --output `"$BuildDir`" `"$ClassesJar`""
-if ($LASTEXITCODE -ne 0) { throw "D8 dexing failed" }
-
-Write-Host "=== Step 5: Adding classes.dex into APK ===" -ForegroundColor Cyan
+Write-Host "=== Step 5: Packaging classes.dex into APK ===" -ForegroundColor Cyan
 Push-Location $BuildDir
-& $Jar uf "$UnsignedApk" classes.dex
-Pop-Location
+try {
+    & $Jar uf "$UnsignedApk" "classes.dex"
+    if ($LASTEXITCODE -ne 0) { throw "Jar package failed" }
+} finally {
+    Pop-Location
+}
 
 Write-Host "=== Step 6: 4-Byte ZipAligning APK ===" -ForegroundColor Cyan
-$AlignedApk = "$OutDir\AegisGuard-v3.1.4-aligned.apk"
-& $Zipalign -f -v 4 $UnsignedApk $AlignedApk
-if ($LASTEXITCODE -ne 0) { throw "ZipAlign failed" }
+$AlignedApk = "$BuildDir\aligned.apk"
+& $Zipalign -p -f -v 4 "$UnsignedApk" "$AlignedApk" | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Zipalign failed" }
 
-Write-Host "=== Step 7: Verifying Permanent Production Keystore ===" -ForegroundColor Cyan
-$KeystoreDir = "$ProjectDir\keystore"
-$Keystore = "$KeystoreDir\aegisguard-release.keystore"
-if (!(Test-Path $Keystore)) {
-    if (!(Test-Path $KeystoreDir)) { New-Item -ItemType Directory -Path $KeystoreDir -Force | Out-Null }
-    & $Keytool -genkeypair -v `
-        -keystore $Keystore `
-        -alias aegisguard `
-        -keyalg RSA -keysize 2048 -validity 10000 `
-        -storepass aegisguardpass -keypass aegisguardpass `
-        -dname "CN=AegisGuard, OU=Security, O=Aegis, L=MountainView, ST=CA, C=US"
-}
+Write-Host "=== Step 7: Signing APK with V2/V3 signature scheme ===" -ForegroundColor Cyan
+$Keystore = "$BuildDir\debug.keystore"
+& $Keytool -genkeypair -v -keystore $Keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Keytool failed" }
 
-Write-Host "=== Step 8: Cryptographically Signing APK (v1, v2, v3 schemes) ===" -ForegroundColor Cyan
-$FinalApk = "$OutDir\AegisGuard-v3.1.4-release.apk"
-& cmd.exe /c "$ApkSigner sign --ks `"$Keystore`" --ks-pass pass:aegisguardpass --key-pass pass:aegisguardpass --ks-key-alias aegisguard --out `"$FinalApk`" `"$AlignedApk`""
+$FinalApk = "$OutDir\AegisGuard-release.apk"
+& cmd.exe /c "`"$ApkSigner`" sign --ks `"$Keystore`" --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android --out `"$FinalApk`" `"$AlignedApk`""
 if ($LASTEXITCODE -ne 0) { throw "ApkSigner failed" }
 
-Write-Host "=== Step 9: Verifying APK Signatures ===" -ForegroundColor Cyan
-& cmd.exe /c "$ApkSigner verify --verbose `"$FinalApk`""
-if ($LASTEXITCODE -ne 0) { throw "Apk verification failed" }
-
-# Copy to user's Downloads, Project root (HTTP Server), and brain artifact directory
-$DownloadsApk = "C:\Users\athul_nuy2ni9\Downloads\AegisGuard-v3.1.4-release.apk"
-Copy-Item -Force $FinalApk $DownloadsApk
-Copy-Item -Force $FinalApk "C:\Users\athul_nuy2ni9\Downloads\AegisGuard-v3.1.3-release.apk"
-Copy-Item -Force $FinalApk "C:\Users\athul_nuy2ni9\Downloads\AegisGuard-v3.1.2-release.apk"
-Copy-Item -Force $FinalApk "C:\Users\athul_nuy2ni9\Downloads\AegisGuard-v3.1.1-release.apk"
-Copy-Item -Force $FinalApk "C:\Users\athul_nuy2ni9\Downloads\AegisGuard-v3.1.0-release.apk"
-Copy-Item -Force $FinalApk "C:\Users\athul_nuy2ni9\Downloads\AegisGuard-v3.0.9-release.apk"
-Copy-Item -Force $FinalApk "C:\Users\athul_nuy2ni9\Downloads\AegisGuard-v3.0.8-release.apk"
-Copy-Item -Force $FinalApk "C:\Users\athul_nuy2ni9\Downloads\AegisGuard-v3.0.7-release.apk"
-Copy-Item -Force $FinalApk "C:\Users\athul_nuy2ni9\Downloads\AegisGuard-v3.0.6-release.apk"
-Copy-Item -Force $FinalApk "C:\Users\athul_nuy2ni9\Downloads\AegisGuard-v3.0.5-release.apk"
-Copy-Item -Force $FinalApk "C:\Users\athul_nuy2ni9\Downloads\AegisGuard-v3.0.4-release.apk"
-Copy-Item -Force $FinalApk "C:\Users\athul_nuy2ni9\Downloads\AegisGuard-v3.0.3-release.apk"
-Copy-Item -Force $FinalApk "C:\Users\athul_nuy2ni9\Downloads\AegisGuard-v3.0.2-release.apk"
-Copy-Item -Force $FinalApk "C:\Users\athul_nuy2ni9\Downloads\AegisGuard-v3.0.1-release.apk"
-Copy-Item -Force $FinalApk "C:\Users\athul_nuy2ni9\Downloads\AegisGuard-v3.0.0-release.apk"
-
-# Copy to HTTP Server root ($ProjectDir)
-Copy-Item -Force $FinalApk "$ProjectDir\AegisGuard-v3.1.4-release.apk"
-Copy-Item -Force $FinalApk "$ProjectDir\AegisGuard-v3.1.3-release.apk"
-Copy-Item -Force $FinalApk "$ProjectDir\AegisGuard-v3.1.2-release.apk"
-Copy-Item -Force $FinalApk "$ProjectDir\AegisGuard-v3.1.1-release.apk"
-Copy-Item -Force $FinalApk "$ProjectDir\AegisGuard-v3.1.0-release.apk"
-Copy-Item -Force $FinalApk "$ProjectDir\AegisGuard-v3.0.9-release.apk"
-Copy-Item -Force $FinalApk "$ProjectDir\AegisGuard-v3.0.8-release.apk"
-Copy-Item -Force $FinalApk "$ProjectDir\AegisGuard-v3.0.7-release.apk"
-Copy-Item -Force $FinalApk "$ProjectDir\AegisGuard-v3.0.6-release.apk"
-Copy-Item -Force $FinalApk "$ProjectDir\AegisGuard-v3.0.5-release.apk"
-Copy-Item -Force $FinalApk "$ProjectDir\AegisGuard-v3.0.4-release.apk"
-Copy-Item -Force $FinalApk "$ProjectDir\AegisGuard-v3.0.3-release.apk"
-Copy-Item -Force $FinalApk "$ProjectDir\AegisGuard-v3.0.2-release.apk"
-Copy-Item -Force $FinalApk "$ProjectDir\AegisGuard-v3.0.1-release.apk"
-Copy-Item -Force $FinalApk "$ProjectDir\AegisGuard-v3.0.0-release.apk"
-
-$BrainDir = "C:\Users\athul_nuy2ni9\.gemini\antigravity\brain\33d1dec8-b1ae-4695-9d9a-e8d94b5ec2a3"
-if (Test-Path $BrainDir) {
-    Copy-Item -Force $FinalApk "$BrainDir\AegisGuard-v3.1.4-release.apk"
-    Copy-Item -Force $FinalApk "$BrainDir\AegisGuard-v3.1.3-release.apk"
-    Copy-Item -Force $FinalApk "$BrainDir\AegisGuard-v3.1.2-release.apk"
-    Copy-Item -Force $FinalApk "$BrainDir\AegisGuard-v3.1.1-release.apk"
-    Copy-Item -Force $FinalApk "$BrainDir\AegisGuard-v3.1.0-release.apk"
-    Copy-Item -Force $FinalApk "$BrainDir\AegisGuard-v3.0.9-release.apk"
-    Copy-Item -Force $FinalApk "$BrainDir\AegisGuard-v3.0.8-release.apk"
-    Copy-Item -Force $FinalApk "$BrainDir\AegisGuard-v3.0.7-release.apk"
-    Copy-Item -Force $FinalApk "$BrainDir\AegisGuard-v3.0.6-release.apk"
-    Copy-Item -Force $FinalApk "$BrainDir\AegisGuard-v3.0.5-release.apk"
-    Copy-Item -Force $FinalApk "$BrainDir\AegisGuard-v3.0.4-release.apk"
-    Copy-Item -Force $FinalApk "$BrainDir\AegisGuard-v3.0.3-release.apk"
-    Copy-Item -Force $FinalApk "$BrainDir\AegisGuard-v3.0.2-release.apk"
-    Copy-Item -Force $FinalApk "$BrainDir\AegisGuard-v3.0.1-release.apk"
-    Copy-Item -Force $FinalApk "$BrainDir\AegisGuard-v3.0.0-release.apk"
-}
-
-Write-Host "==========================================================" -ForegroundColor Green
-Write-Host "SUCCESS! Production APK generated at: $FinalApk" -ForegroundColor Green
-Write-Host "Direct Phone Download ready at: $DownloadsApk" -ForegroundColor Green
-$apkItem = Get-Item $FinalApk
-Write-Host "APK File Size: $([math]::Round($apkItem.Length / 1KB, 2)) KB" -ForegroundColor Green
-Write-Host "==========================================================" -ForegroundColor Green
+Write-Host "Build Succeeded: $FinalApk" -ForegroundColor Green

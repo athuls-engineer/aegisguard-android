@@ -1,10 +1,10 @@
 import re
 
-with open(r"C:\Users\athul_nuy2ni9\.gemini\antigravity\scratch\aegisguard-android\src\main\res\layout\activity_main.xml", "r", encoding="utf-8") as f:
+with open(os.path.join(os.path.dirname(__file__), "..", "src", "main", "res", "layout", "activity_main.xml"), "r", encoding="utf-8") as f:
     main_xml = f.read()
 xml_ids = set(re.findall(r'android:id="@\+id/([a-zA-Z0-9_]+)"', main_xml))
 
-with open(r"C:\Users\athul_nuy2ni9\.gemini\antigravity\scratch\aegisguard-android\src\main\java\org\aegisguard\android\MainActivity.java", "r", encoding="utf-8") as f:
+with open(os.path.join(os.path.dirname(__file__), "..", "src", "main", "java", "org", "aegisguard", "android", "MainActivity.java"), "r", encoding="utf-8") as f:
     main_java = f.read()
 java_ids = set(re.findall(r'findViewById\(R\.id\.([a-zA-Z0-9_]+)\)', main_java))
 
