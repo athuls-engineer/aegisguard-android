@@ -70,9 +70,12 @@ $JavaFiles = Get-ChildItem -Path "$ProjectDir\src\main\java", $GenDir -Recurse -
 & $Javac -encoding UTF-8 -source 1.8 -target 1.8 -cp $AndroidJar -d $ClassesDir $JavaFiles
 if ($LASTEXITCODE -ne 0) { throw "Javac compilation failed" }
 
-Write-Host "=== Step 4: Compiling Bytecode to DEX with D8 ===" -ForegroundColor Cyan
-$ClassFiles = Get-ChildItem -Path $ClassesDir -Recurse -Filter "*.class" | Select-Object -ExpandProperty FullName
-& cmd.exe /c "`"$D8`" --release --min-api 24 --output `"$BuildDir`" $($ClassFiles -join ' ')"
+Write-Host "=== Step 4: Packaging Bytecode into JAR & Compiling to DEX with D8 ===" -ForegroundColor Cyan
+$ClassesJar = "$BuildDir\compiled_classes.jar"
+& $Jar cf "$ClassesJar" -C "$ClassesDir" .
+if ($LASTEXITCODE -ne 0) { throw "Jar compilation archive failed" }
+
+& cmd.exe /c "`"$D8`" --release --min-api 24 --output `"$BuildDir`" `"$ClassesJar`""
 if ($LASTEXITCODE -ne 0) { throw "D8 compilation failed" }
 
 Write-Host "=== Step 5: Packaging classes.dex into APK ===" -ForegroundColor Cyan
