@@ -1,0 +1,11 @@
+name: Feature Request
+description: Suggest an enhancement for AegisGuard Android
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: feature
+    attributes:
+      label: Feature Description
+      description: Describe your proposed feature.
+    validations:
+      required: true

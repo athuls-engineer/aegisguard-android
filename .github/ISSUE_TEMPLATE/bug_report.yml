@@ -1,0 +1,18 @@
+name: Bug Report
+description: Report an issue or website breakage in AegisGuard Android
+labels: ["bug"]
+body:
+  - type: input
+    id: android-version
+    attributes:
+      label: Android Version / Device
+      placeholder: e.g., Android 14 / Pixel 7
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description of Issue
+      description: Describe what occurred (DNS leak, app crash, unblocked domain).
+    validations:
+      required: true
