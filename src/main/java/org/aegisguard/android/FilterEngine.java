@@ -161,11 +161,11 @@ public class FilterEngine {
         return CUSTOM_BLACKLIST.contains(clean);
     }
 
-    private static final Set<String> AD_DOMAINS = new HashSet<>(512);
+    private static final Set<String> AD_DOMAINS = new HashSet<>(1024);
     private static final Set<String> POPUP_DOMAINS = new HashSet<>(256);
-    private static final Set<String> TRACKER_DOMAINS = new HashSet<>(256);
-    private static final Set<String> FINGERPRINT_DOMAINS = new HashSet<>(128);
-    private static final Set<String> OEM_DOMAINS = new HashSet<>(128);
+    private static final Set<String> TRACKER_DOMAINS = new HashSet<>(512);
+    private static final Set<String> FINGERPRINT_DOMAINS = new HashSet<>(256);
+    private static final Set<String> OEM_DOMAINS = new HashSet<>(256);
     private static final Set<String> MALWARE_DOMAINS = new HashSet<>(256);
     private static final Set<String> CRYPTOMINER_DOMAINS = new HashSet<>(128);
     public static final Set<String> DYNAMIC_DOMAINS = Collections.synchronizedSet(new HashSet<String>(4096));
@@ -191,6 +191,18 @@ public class FilterEngine {
         "admediation", "ad-mediation", "ad-auction", "ad-bidding",
         "videomedia", "video-ad", "video-ads",
         "adclick", "adclicks"
+    ));
+
+    // High-performance heuristic tracker & telemetry subdomain labels
+    private static final Set<String> TRACKER_SUBDOMAIN_LABELS = new HashSet<>(Arrays.asList(
+        "telemetry", "tracking", "tracker", "adtrack", "adtracker",
+        "mobile-telemetry", "app-telemetry", "app-analytics", "device-metrics",
+        "stats-collector", "event-tracker", "event-collector"
+    ));
+
+    // High-performance heuristic device & browser fingerprinting subdomain labels
+    private static final Set<String> FINGERPRINT_SUBDOMAIN_LABELS = new HashSet<>(Arrays.asList(
+        "fingerprint", "fp", "fingerprinting", "device-profiling", "device-fingerprint", "canvas-fp"
     ));
 
     private static final Set<String> SHARED_HOSTING_SUFFIXES = new HashSet<>(Arrays.asList(
@@ -370,7 +382,25 @@ public class FilterEngine {
             "pokkt.com", "delivery.pokkt.com", "api.pokkt.com",
             "vserv.mobi", "vserv.com",
             "pubscale.com", "api.pubscale.com",
-            "revx.io", "affle.com"
+            "revx.io", "affle.com",
+            // Global Web SSPs, Video Ad Exchanges & Header Bidding Infrastructure
+            "rubiconproject.com", "fastlane.rubiconproject.com", "magnite.com", "spotx.tv", "spotxchange.com",
+            "openx.net", "openx.com", "ox-d.net", "us-ads.openx.net",
+            "pubmatic.com", "hbopenbid.pubmatic.com", "ads.pubmatic.com",
+            "smartadserver.com", "equativ.com",
+            "media.net", "adadn.com",
+            "casalemedia.com", "indexww.com",
+            "sovrn.com", "lijit.com", "ap.lijit.com",
+            "triplelift.com", "triplelift.net", "tlx.3lift.com", "3lift.com",
+            "sharethrough.com", "match.sharethrough.com",
+            "teads.tv", "teads.com",
+            "ezoic.net", "ezoic.com", "ezoicserv.com",
+            "mediavine.com", "reserved.mediavine.com",
+            "raptive.com", "adthrive.com", "ads.adthrive.com",
+            "freestar.io", "pub.freestar.io", "a.pub.freestar.io",
+            "snigelweb.com",
+            "a9.com", "amazon-adsystem.com", "c.amazon-adsystem.com",
+            "freewheel.tv", "publica.com", "innovid.com", "springserve.com", "beachfront.com", "tremorhub.com", "adswizz.com"
         };
         Collections.addAll(AD_DOMAINS, ads);
 
@@ -399,47 +429,88 @@ public class FilterEngine {
         // 3. Mobile Telemetry, Attribution & Cross-App Surveillance
         String[] trackers = new String[] {
             "appsflyer.com", "app.appsflyer.com", "gcdsdk.appsflyer.com", "t.appsflyer.com", "appsflyersdk.com",
-            "adjust.com", "app.adjust.com", "view.adjust.com",
-            "branch.io", "api.branch.io", "api2.branch.io",
-            "kochava.com", "control.kochava.com", "api.kochava.com",
-            "singular.net", "c.singular.net", "singular-metrics.com",
-            "tenjin.io", "tenjin.com", "airbridge.io",
-            "braze.com", "appboy.com", "sdk.iad-01.braze.com", "sdk.iad-03.braze.com",
+            "af-track.com", "hq1.appsflyer.com", "onelink.me", "websdk.appsflyer.com",
+            "adjust.com", "app.adjust.com", "view.adjust.com", "adjust.net", "adjust.io", "event.adjust.com", "ulink.adjust.com", "app.adjust.net.in",
+            "branch.io", "api.branch.io", "api2.branch.io", "app.link", "bnc.lt",
+            "kochava.com", "control.kochava.com", "api.kochava.com", "smart.link", "ad.kochava.com", "tracking.kochava.com",
+            "singular.net", "c.singular.net", "singular-metrics.com", "singular.com", "tracking.singular.net",
+            "tenjin.io", "tenjin.com", "track.tenjin.com", "track.tenjin.io",
+            "airbridge.io", "tracking.airbridge.io", "abr.ge",
+            "braze.com", "appboy.com", "sdk.iad-01.braze.com", "sdk.iad-03.braze.com", "appboy-images.com", "dev.appboy.com",
             "mixpanel.com", "api.mixpanel.com", "decide.mixpanel.com",
             "segment.io", "segment.com", "api.segment.io", "cdn.segment.com",
             "amplitude.com", "api.amplitude.com", "api2.amplitude.com",
-            "rudderstack.com", "api.rudderlabs.com", "count.ly", "uxcam.com",
-            "localytics.com", "heap.io", "leanplum.com", "clevertap.com", "moengage.com",
+            "rudderstack.com", "api.rudderlabs.com", "count.ly", "uxcam.com", "api.uxcam.com",
+            "localytics.com", "heap.io", "heapanalytics.com", "cdn.heapanalytics.com", "leanplum.com",
+            "clevertap.com", "wzrkt.com", "spiky.clevertap.com",
+            "moengage.com", "data-01.moengage.com", "api-01.moengage.com", "app-analytics.moengage.com",
             "onesignal.com", "airship.com", "urbanairship.com", "iterable.com", "customer.io",
-            "kissmetrics.com", "crazyegg.com", "hotjar.com", "clarity.ms", "mouseflow.com",
-            "fullstory.com", "logrocket.com", "smartlook.com", "smartlook.cloud", "contentsquare.net",
-            "app-measurement.com", "google-analytics.com", "analytics.google.com",
-            "scorecardresearch.com", "quantserve.com", "quantcast.com", "comscore.com",
-            "moatads.com", "doubleverify.com", "iasds01.com", "integralads.com", "permutive.com",
-            "bluekai.com", "krxd.net", "demdex.net", "omtrdc.net", "rlcdn.com", "agkn.com",
-            "tapad.com", "liveramp.com", "id5-sync.com", "crwdcntrl.net", "eyeota.net",
+            "kissmetrics.com", "kissmetrics.io", "trkn.us", "crazyegg.com", "script.crazyegg.com",
+            "hotjar.com", "script.hotjar.com", "vars.hotjar.com", "clarity.ms", "c.clarity.ms", "mouseflow.com",
+            "fullstory.com", "rs.fullstory.com", "edge.fullstory.com",
+            "logrocket.com", "logrocket.io", "r.logrocket.io",
+            "smartlook.com", "smartlook.cloud", "contentsquare.net", "csq.contentsquare.net",
+            "app-measurement.com", "google-analytics.com", "analytics.google.com", "ssl.google-analytics.com", "firebase-telemetry.googleapis.com",
+            "scorecardresearch.com", "voicefive.com", "quantserve.com", "pixel.quantserve.com", "quantcast.com", "comscore.com",
+            "moatads.com", "moat.com", "doubleverify.com", "iasds01.com", "integralads.com", "permutive.com", "permutive.app",
+            "bluekai.com", "bkrtx.com", "krxd.net", "demdex.net", "omtrdc.net", "rlcdn.com", "agkn.com",
+            "tapad.com", "liveramp.com", "id5-sync.com", "crwdcntrl.net", "eyeota.net", "uidapi.com",
             // Social Media Cross-App Tracking Pixels & Telemetry
-            "pixel.facebook.com", "an.facebook.com", "tr.snapchat.com",
+            "pixel.facebook.com", "an.facebook.com", "tr.snapchat.com", "sc-analytics.appspot.com", "analytics.snapchat.com",
             "events.reddit.com", "alb.reddit.com", "ads.reddit.com", "e.reddit.com",
             "analytics.tiktok.com", "ads.tiktok.com", "ads-twitter.com",
             "log.byteoversea.com", "mon.byteoversea.com", "analytics.byteoversea.com",
             "tobapplog.byteoversea.com", "rtlog.byteoversea.com", "ad-asset.ibytedtos.com",
             "ads.twitter.com",
-            "ads.pinterest.com", "ads.linkedin.com",
+            "ads.pinterest.com", "ct.pinterest.com", "log.pinterest.com",
+            "ads.linkedin.com", "px.ads.linkedin.com",
             // In-Built Video Streaming & Mobile Surveillance Beacons
             "spade.twitch.tv", "countess.twitch.tv",
             "adeventtracker.spotify.com", "mc.yandex.ru", "data.flurry.com",
-            "mobile.pipe.aria.microsoft.com"
+            "mobile.pipe.aria.microsoft.com", "browser.pipe.aria.microsoft.com",
+            "appmetrica.criteo.com", "metrica.yandex.com",
+            // Mobile Game & App Telemetry SDKs
+            "telemetry.sdk.mob.com", "api.share.mob.com", "mob.com",
+            "sdk.umeng.com", "ut.umeng.com", "alog.umeng.com", "umeng.com",
+            "talkingdata.net", "c.talkingdata.net",
+            "gameanalytics.com", "api.gameanalytics.com",
+            "telemetry.unity3d.com", "cdp.cloud.unity3d.com", "analytics.unity3d.com"
         };
         Collections.addAll(TRACKER_DOMAINS, trackers);
 
-        // 4. Deep Canvas, Audio, WebGL & Device Fingerprinting Collectors
+        // 4. Deep Canvas, Audio, WebGL, Sensor & Device Fingerprinting Collectors
         String[] fingerprints = new String[] {
-            "mobile-collector.newrelic.com", "bam.nr-data.net", "fingerprintjs.com",
-            "fpjs.io", "cdn.fpjs.io", "botd.fpjs.sh", "device-metrics-us.amazon.com",
-            "device-metrics.amazon.com", "fp.browser.qq.com", "augur.io",
-            "evercookie.net", "canvasfingerprinting.com",
-            "browserleaks.com", "deviceinfo.me", "clientjs.org", "audiofingerprint.openwpm.com"
+            // New Relic Full-Session Telemetry
+            "mobile-collector.newrelic.com", "bam.nr-data.net",
+            // Fingerprint.com / FingerprintJS Pro & Enterprise (Browser & Mobile Device Identification)
+            "fingerprintjs.com", "fingerprint.com", "fpjs.io", "cdn.fpjs.io", "api.fpjs.io",
+            "fp.fingerprint.com", "eu.fpjs.io", "ap.fpjs.io", "fp.fpjs.io", "openfpcdn.io", "fpnpmcdn.net", "botd.fpjs.sh",
+            // LexisNexis ThreatMetrix (Canvas, Audio, Font, Battery & Hardware Concurrency Profiling)
+            "threatmetrix.com", "online-metrix.net", "h-sdk.online-metrix.net", "tds.online-metrix.net",
+            "pixel.online-metrix.net", "mpsnare.iesnare.com",
+            // TransUnion iovation (Device Reputation & Hardware Profiling)
+            "iovation.com", "ci-mpsnare.iovation.com", "iesnare.com", "admin.iesnare.com",
+            // Sift (Behavioral & Hardware Device Fingerprinting)
+            "siftscience.com", "sift.com", "api.sift.com", "cdn.sift.com", "api3.siftscience.com",
+            // Socure (Device Intelligence & Predictive Profiling)
+            "socure.com", "sdk.socure.com", "device.socure.com",
+            // Forter (Behavioral & Device Environment Profiling)
+            "forter.com", "cdn.forter.com", "track.forter.com",
+            // Equifax Kount (Device Identification Engine)
+            "kount.com", "kaxsdc.com", "t.kount.com",
+            // HUMAN Security / PerimeterX (Device, Sensor & Browser Environment Fingerprinting)
+            "perimeterx.net", "px-cdn.net", "px-client.net", "px-cloud.net", "collector.perimeterx.net",
+            // Arkose Labs (Device Telemetry & Environment Profiling)
+            "arkoselabs.com", "client-api.arkoselabs.com", "verify.arkoselabs.com",
+            // DataDog Real User Monitoring (RUM) Session Telemetry
+            "browser-http-intake.logs.datadoghq.com", "browser-http-intake.logs.datadoghq.eu", "rum-http-intake.logs.datadoghq.com",
+            // Amazon Device Metrics
+            "device-metrics-us.amazon.com", "device-metrics.amazon.com",
+            // General Fingerprinting Scripts & Test Frameworks
+            "fp.browser.qq.com", "augur.io", "evercookie.net", "canvasfingerprinting.com",
+            "browserleaks.com", "deviceinfo.me", "clientjs.org", "audiofingerprint.openwpm.com",
+            "panopticlick.eff.org", "coveryourtracks.eff.org", "amiunique.org", "unique-machine.org",
+            "canvasblocker.com", "creepjs-api.web.app"
         };
         Collections.addAll(FINGERPRINT_DOMAINS, fingerprints);
 
@@ -556,15 +627,24 @@ public class FilterEngine {
         while (nextDot > 0) {
             String parent = domain.substring(nextDot + 1);
             if (GLOBAL_PROTECTED_ROOTS.contains(parent)) {
-                // Never protect explicit advertising endpoints even if hosted on protected parent
-                if (domain.contains("adservice.google") || domain.contains("googleads.") ||
+                // Never protect explicit advertising or tracking endpoints even if hosted on protected parent
+                if (AD_DOMAINS.contains(domain) || TRACKER_DOMAINS.contains(domain) || FINGERPRINT_DOMAINS.contains(domain)) {
+                    return false;
+                }
+                if (domain.startsWith("ads.") || domain.contains(".ads.") ||
+                    domain.contains("adservice.") || domain.contains("googleads.") ||
                     domain.contains("doubleclick.net") || domain.contains("pagead2.") ||
                     domain.contains("googletagservices.") || domain.contains("partnerad.") ||
                     domain.contains("ads.youtube.com") || domain.contains("ad.youtube.com") ||
                     domain.contains("youtubeads.") || domain.contains("imasdk.googleapis.com") ||
                     domain.contains("ad-delivery.") || domain.contains("pixel.facebook.com") ||
                     domain.contains("an.facebook.com") || domain.contains("ads.tiktok.com") ||
-                    domain.contains("ads.twitter.com") || domain.contains("ads.reddit.com")) {
+                    domain.contains("ads.twitter.com") || domain.contains("ads.reddit.com") ||
+                    domain.contains("events.reddit.com") || domain.contains("pixel.") ||
+                    domain.contains("telemetry.") || domain.contains("analytics.") ||
+                    domain.contains("fingerprint.") || domain.contains("statsig") ||
+                    domain.contains("pipe.aria.") || domain.contains("aria.microsoft.") ||
+                    domain.contains("adeventtracker.") || domain.contains("spade.twitch.")) {
                     return false;
                 }
                 return true;
@@ -587,10 +667,10 @@ public class FilterEngine {
         if (domain.equals("ad.nl") || domain.endsWith(".ad.nl") || domain.equals("ad.si") || domain.endsWith(".ad.si")) {
             return true;
         }
-        // Protect all legitimate parcel courier tracking
+        // Protect legitimate parcel courier tracking on known roots or postal domains
         if (domain.startsWith("track.") || domain.startsWith("tracking.") || domain.startsWith("tracker.")) {
             String parent = domain.substring(domain.indexOf('.') + 1);
-            if (!AD_DOMAINS.contains(parent) && !TRACKER_DOMAINS.contains(parent)) {
+            if (GLOBAL_PROTECTED_ROOTS.contains(parent) || parent.endsWith(".gov") || parent.endsWith(".gov.in") || parent.endsWith(".post")) {
                 return true;
             }
         }
@@ -609,7 +689,20 @@ public class FilterEngine {
             domain = domain.substring(0, domain.length() - 1);
         }
 
-        // Never whitelist known telemetry or ad beacons even if hosted on major platform domains
+        // Never whitelist known telemetry, fingerprinting or ad beacons even if hosted on major platform domains
+        if (AD_DOMAINS.contains(domain) || TRACKER_DOMAINS.contains(domain) || FINGERPRINT_DOMAINS.contains(domain)) {
+            return false;
+        }
+        String curCheck = domain;
+        while (curCheck.contains(".")) {
+            if (AD_DOMAINS.contains(curCheck) || TRACKER_DOMAINS.contains(curCheck) || FINGERPRINT_DOMAINS.contains(curCheck)) {
+                return false;
+            }
+            int dot = curCheck.indexOf('.');
+            if (dot == -1) break;
+            curCheck = curCheck.substring(dot + 1);
+        }
+
         if (domain.contains("pixel.facebook.com") || domain.contains("an.facebook.com") ||
             domain.contains("events.reddit.com") || domain.contains("alb.reddit.com") ||
             domain.contains("ads.reddit.com") || domain.contains("e.reddit.com") ||
@@ -624,7 +717,10 @@ public class FilterEngine {
             domain.equals("imasdk.googleapis.com") || domain.endsWith(".imasdk.googleapis.com") ||
             domain.contains("adtrafficquality.") ||
             domain.contains("eligibility-panelresearch.") ||
-            domain.contains("ad-delivery.")) {
+            domain.contains("ad-delivery.") ||
+            domain.contains("pipe.aria.") || domain.contains("aria.microsoft.") ||
+            domain.contains("telemetry.microsoft.") || domain.contains("vortex.data.microsoft.") ||
+            domain.contains("adeventtracker.") || domain.contains("spade.twitch.")) {
             return false;
         }
 
@@ -1057,22 +1153,22 @@ public class FilterEngine {
             current = current.substring(nextDot + 1);
         }
 
-        // 5. Fast Heuristic detection on standard ad, banner, popup & interstitial subdomains
+        // 5. Fast Heuristic detection on standard ad, banner, tracker & fingerprinting subdomains
         // Strictly requires at least TWO dots (e.g. ads.example.com, NEVER apex ad.nl or banner.com)
-        if (blockAds) {
-            int firstDot = domain.indexOf('.');
-            int lastDot = domain.lastIndexOf('.');
-            if (firstDot > 0 && firstDot != lastDot) {
-                String parent = domain.substring(firstDot + 1);
-                if (!SHARED_HOSTING_SUFFIXES.contains(parent)) {
-                    // Universal Multi-Label Subdomain Inspection (e.g. us.ads.example.com -> checks "us", "ads")
-                    String[] labels = domain.split("\\.");
-                    int subCount = labels.length - 2;
-                    if (labels.length >= 3 && SHARED_HOSTING_SUFFIXES.contains(labels[labels.length - 2] + "." + labels[labels.length - 1])) {
-                        subCount = labels.length - 3;
-                    }
-                    for (int i = 0; i < subCount; i++) {
-                        String label = labels[i];
+        int firstDot = domain.indexOf('.');
+        int lastDot = domain.lastIndexOf('.');
+        if (firstDot > 0 && firstDot != lastDot) {
+            String parent = domain.substring(firstDot + 1);
+            if (!SHARED_HOSTING_SUFFIXES.contains(parent)) {
+                // Universal Multi-Label Subdomain Inspection (e.g. us.ads.example.com -> checks "us", "ads")
+                String[] labels = domain.split("\\.");
+                int subCount = labels.length - 2;
+                if (labels.length >= 3 && SHARED_HOSTING_SUFFIXES.contains(labels[labels.length - 2] + "." + labels[labels.length - 1])) {
+                    subCount = labels.length - 3;
+                }
+                for (int i = 0; i < subCount; i++) {
+                    String label = labels[i];
+                    if (blockAds) {
                         if (AD_SUBDOMAIN_LABELS.contains(label)) {
                             return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
                         }
@@ -1111,6 +1207,25 @@ public class FilterEngine {
                             return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
                         }
                     }
+
+                    if (blockFingerprint) {
+                        if (FINGERPRINT_SUBDOMAIN_LABELS.contains(label) || label.startsWith("fingerprint") || label.equals("fp") || label.startsWith("fp-")) {
+                            if (!isProtectedWebsite(domain) && !isEssentialService(domain)) {
+                                return new MatchResult(Decision.BLOCK_FINGERPRINT, "Heuristic Fingerprinting Subdomain", "Aegis_Fingerprint_Heuristic:" + domain);
+                            }
+                        }
+                    }
+
+                    if (blockTrackers) {
+                        if (TRACKER_SUBDOMAIN_LABELS.contains(label) || label.startsWith("telemetry") || label.startsWith("mobile-telemetry") || label.startsWith("app-telemetry")) {
+                            if (!isProtectedWebsite(domain) && !isEssentialService(domain)) {
+                                return new MatchResult(Decision.BLOCK_TRACKER, "Heuristic Tracker Subdomain", "Aegis_Tracker_Heuristic:" + domain);
+                            }
+                        }
+                    }
+                }
+
+                if (blockAds) {
                     if (domain.startsWith("adserver.") || domain.startsWith("adservers.") ||
                         domain.startsWith("adservice.") || domain.startsWith("adsystem.") ||
                         domain.startsWith("adsystems.") || domain.startsWith("ads-api.") ||
@@ -1134,6 +1249,22 @@ public class FilterEngine {
                         domain.startsWith("sponsored.") || domain.startsWith("promoted.") ||
                         domain.startsWith("adclick.")) {
                         return new MatchResult(Decision.BLOCK_AD, "Heuristic Ad Subdomain", "Aegis_Heuristic:" + domain);
+                    }
+                }
+
+                if (blockFingerprint) {
+                    if (domain.startsWith("fingerprint.") || domain.startsWith("fingerprinting.") || domain.startsWith("device-metrics.") || domain.startsWith("fp.")) {
+                        if (!isProtectedWebsite(domain) && !isEssentialService(domain)) {
+                            return new MatchResult(Decision.BLOCK_FINGERPRINT, "Heuristic Fingerprinting Subdomain", "Aegis_Fingerprint_Heuristic:" + domain);
+                        }
+                    }
+                }
+
+                if (blockTrackers) {
+                    if (domain.startsWith("telemetry.") || domain.startsWith("app-analytics.") || domain.startsWith("mobile-telemetry.") || domain.startsWith("stats-collector.")) {
+                        if (!isProtectedWebsite(domain) && !isEssentialService(domain)) {
+                            return new MatchResult(Decision.BLOCK_TRACKER, "Heuristic Tracker Subdomain", "Aegis_Tracker_Heuristic:" + domain);
+                        }
                     }
                 }
             }
