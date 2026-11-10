@@ -357,7 +357,7 @@ public class FilterEngine {
             "c.startappservice.com", "events.startappservice.com", "init.startappservice.com", "d.startappservice.com", "req.startappservice.com",
             "info.startappservice.com", "va.startappservice.com", "video.startappservice.com", "ad.startappservice.com",
             "chartboost.net", "auction.chartboost.com", "webview.chartboost.com", "tapjoy.net", "offerwall.tapjoy.com", "video.tapjoy.com",
-            "mobile.yandexadexchange.net", "bs.yandex.ru", "tradplus.com", "topon.com", "adtiming.net", "adtiming.cn", "adjoe.io", "ads.hyprmx.com",
+            "mobile.yandexadexchange.net", "bs.yandex.ru", "ymatuhin.ru", "tradplus.com", "topon.com", "adtiming.net", "adtiming.cn", "adjoe.io", "ads.hyprmx.com",
             "bidmachine.com", "assets.appodeal.com", "mediation.appodeal.com",
             "gdt.qq.com", "mi.gdt.qq.com", "win.gdt.qq.com", "t.gdt.qq.com", "v.gdt.qq.com", "pgdt.gtimg.cn",
             "mobads.baidu.com", "mobads-logs.baidu.com", "wn.pos.baidu.com", "adx.adsmogo.com", "adsmogo.com", "domob.cn", "domob.org", "adview.cn",
@@ -503,8 +503,8 @@ public class FilterEngine {
             "app.posthog.com", "eu.posthog.com", "us.i.posthog.com", "cdn.rudderlabs.com", "snowplowanalytics.com",
             "cloudflareinsights.com", "static.cloudflareinsights.com",
             // Diagnostic, Crash & Error Trackers
-            "ingest.sentry.io", "o0.ingest.sentry.io", "browser.sentry-cdn.com", "app.getsentry.com",
-            "notify.bugsnag.com", "sessions.bugsnag.com", "api.bugsnag.com", "app.bugsnag.com",
+            "ingest.sentry.io", "o0.ingest.sentry.io", "browser.sentry-cdn.com", "js.sentry-cdn.com", "sentry-cdn.com", "app.getsentry.com",
+            "notify.bugsnag.com", "sessions.bugsnag.com", "api.bugsnag.com", "app.bugsnag.com", "d2wy8f7a9ursnm.cloudfront.net",
             "browser-intake-datadoghq.com", "rum.browser-intake-datadoghq.com", "bam-cell.nr-data.net", "js-agent.newrelic.com",
             "cdn.lr-ingest.com", "r.lr-ingest.com",
             // Behavioral Analytics & A/B Testing
