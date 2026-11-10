@@ -405,7 +405,7 @@ public class FilterEngine {
             "2975c.v.fwmrm.net", "aan.amazon.com", "ad.gt", "adfstat.yandex.ru", "ads.microsoft.com",
             "ads.yahoo.com", "adsrvr.org", "adtago.s3.amazonaws.com", "adtech.yahooinc.com", "advertising-api-eu.amazon.com",
             "advertising.yahoo.com", "advertising.yandex.ru", "advice-ads.s3.amazonaws.com", "analytics.query.yahoo.com", "analytics.yahoo.com",
-            "analyticsengine.s3.amazonaws.com", "appmetrica.yandex.ru", "bat.bing.com", "bea4.v.fwmrm.net", "bingads.microsoft.com",
+            "analyticsengine.s3.amazonaws.com", "analytics.s3.amazonaws.com", "appmetrica.yandex.ru", "bat.bing.com", "bea4.v.fwmrm.net", "bingads.microsoft.com",
             "c.bing.com", "dai.google.com", "extmaps-api.yandex.net", "fw.adsafeprotected.com", "g.jwpsrv.com",
             "gemini.yahoo.com", "geo.yahoo.com", "htlbid.com", "insightexpressai.com", "insights.adsrvr.org",
             "ironsource.mobi", "log.fc.yahoo.com", "match.adsrvr.org", "metrics.brightcove.com", "metrika.yandex.ru",
@@ -512,6 +512,7 @@ public class FilterEngine {
             "st.dynamicyield.com", "events.launchdarkly.com", "clientstream.launchdarkly.com",
             // Session Replay & User Feedback
             "events.hotjar.io", "claritybt.freshmarketer.com", "fwtracks.freshmarketer.com", "api.luckyorange.com",
+            "luckyorange.com", "api.luckyorange.com", "freshmarketer.com", "claritybt.freshmarketer.com", "fwtracks.freshmarketer.com",
             "realtime.luckyorange.com", "cdn.luckyorange.com", "w1.luckyorange.com", "upload.luckyorange.net",
             "cs.luckyorange.net", "settings.luckyorange.net",
             // Identity Resolution & Cookie Sync
@@ -587,7 +588,7 @@ public class FilterEngine {
             "analytics.asus.com", "metrics.lenovo.com",
             // Apple Search Ads & System Telemetry
             "advertising.apple.com", "tr.iadsdk.apple.com", "iadsdk.apple.com", "metrics.apple.com", "metrics.icloud.com",
-            "metrics.mzstatic.com", "api-adservices.apple.com", "books-analytics-events.apple.com", "notes-analytics-events.apple.com", "xp.apple.com",
+            "metrics.mzstatic.com", "api-adservices.apple.com", "books-analytics-events.apple.com", "notes-analytics-events.apple.com", "weather-analytics-events.apple.com", "xp.apple.com",
             // Microsoft / Windows Telemetry
             "settings-win.data.microsoft.com", "vortex.data.microsoft.com", "vortex-win.data.microsoft.com", "watson.telemetry.microsoft.com",
             "telemetry.microsoft.com", "browser.events.data.msn.com",
