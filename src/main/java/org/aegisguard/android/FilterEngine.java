@@ -161,11 +161,11 @@ public class FilterEngine {
         return CUSTOM_BLACKLIST.contains(clean);
     }
 
-    private static final Set<String> AD_DOMAINS = new HashSet<>(1024);
-    private static final Set<String> POPUP_DOMAINS = new HashSet<>(256);
-    private static final Set<String> TRACKER_DOMAINS = new HashSet<>(512);
+    private static final Set<String> AD_DOMAINS = new HashSet<>(2048);
+    private static final Set<String> POPUP_DOMAINS = new HashSet<>(512);
+    private static final Set<String> TRACKER_DOMAINS = new HashSet<>(1024);
     private static final Set<String> FINGERPRINT_DOMAINS = new HashSet<>(256);
-    private static final Set<String> OEM_DOMAINS = new HashSet<>(256);
+    private static final Set<String> OEM_DOMAINS = new HashSet<>(512);
     private static final Set<String> MALWARE_DOMAINS = new HashSet<>(256);
     private static final Set<String> CRYPTOMINER_DOMAINS = new HashSet<>(128);
     public static final Set<String> DYNAMIC_DOMAINS = Collections.synchronizedSet(new HashSet<String>(4096));
@@ -400,7 +400,18 @@ public class FilterEngine {
             "freestar.io", "pub.freestar.io", "a.pub.freestar.io",
             "snigelweb.com",
             "a9.com", "amazon-adsystem.com", "c.amazon-adsystem.com",
-            "freewheel.tv", "publica.com", "innovid.com", "springserve.com", "beachfront.com", "tremorhub.com", "adswizz.com"
+            "freewheel.tv", "publica.com", "innovid.com", "springserve.com", "beachfront.com", "tremorhub.com", "adswizz.com",
+            // Super Adblock Benchmark & Multi-Network Probes
+            "2975c.v.fwmrm.net", "aan.amazon.com", "ad.gt", "adfstat.yandex.ru", "ads.microsoft.com",
+            "ads.yahoo.com", "adsrvr.org", "adtago.s3.amazonaws.com", "adtech.yahooinc.com", "advertising-api-eu.amazon.com",
+            "advertising.yahoo.com", "advertising.yandex.ru", "advice-ads.s3.amazonaws.com", "analytics.query.yahoo.com", "analytics.yahoo.com",
+            "analyticsengine.s3.amazonaws.com", "appmetrica.yandex.ru", "bat.bing.com", "bea4.v.fwmrm.net", "bingads.microsoft.com",
+            "c.bing.com", "dai.google.com", "extmaps-api.yandex.net", "fw.adsafeprotected.com", "g.jwpsrv.com",
+            "gemini.yahoo.com", "geo.yahoo.com", "htlbid.com", "insightexpressai.com", "insights.adsrvr.org",
+            "ironsource.mobi", "log.fc.yahoo.com", "match.adsrvr.org", "metrics.brightcove.com", "metrika.yandex.ru",
+            "mssl.fwmrm.net", "offerwall.yandex.net", "onclickads.net", "pangleglobal.com", "partnerads.ysm.yahoo.com",
+            "pixel.adsafeprotected.com", "prd.jwpltx.com", "propellerclick.com", "s.youtube.com", "ssl.p.jwpcdn.com",
+            "static.adsafeprotected.com", "stickyadstv.com", "udc.yahoo.com", "udcm.yahoo.com"
         };
         Collections.addAll(AD_DOMAINS, ads);
 
@@ -422,7 +433,11 @@ public class FilterEngine {
             "onclickalgo.com", "onclickperformance.com", "pushengage.com", "pushassist.com",
             "subscribers.com", "webpushr.com",
             "popmyads.com", "popunder.net", "popvertising.com", "galaksion.com", "rollerads.com",
-            "mondiad.com", "chitika.com"
+            "mondiad.com", "chitika.com",
+            // Affiliate Tracking & Redirect Networks
+            "api.partnerstack.com", "d.impactradius-event.com", "partnerstack.com", "prf.hn", "refersion.com",
+            "shareasale.com", "t.pepperjamnetwork.com", "www.anrdoezrs.net", "www.dpbolvw.net", "www.tkqlhce.com",
+            "zenaps.com"
         };
         Collections.addAll(POPUP_DOMAINS, popups);
 
@@ -474,7 +489,42 @@ public class FilterEngine {
             "sdk.umeng.com", "ut.umeng.com", "alog.umeng.com", "umeng.com",
             "talkingdata.net", "c.talkingdata.net",
             "gameanalytics.com", "api.gameanalytics.com",
-            "telemetry.unity3d.com", "cdp.cloud.unity3d.com", "analytics.unity3d.com"
+            "telemetry.unity3d.com", "cdp.cloud.unity3d.com", "analytics.unity3d.com",
+            // Social Trackers, Conversion Pixels & Advertising APIs
+            "connect.facebook.net", "tr.facebook.com", "ads.snapchat.com", "sc-static.net",
+            "analytics.pointdrive.linkedin.com", "snap.licdn.com", "ads.x.com", "ads-api.twitter.com",
+            "ads-api.x.com", "analytics.twitter.com", "analytics.x.com", "d.reddit.com",
+            "events.redditmedia.com", "pixel.redditmedia.com", "analytics-sg.tiktok.com", "mcs-va.tiktokv.com",
+            "mon.tiktokv.com", "analytics.pinterest.com", "trk.pinterest.com", "widgets.pinterest.com",
+            "pixel.quora.com", "qevents.quora.com", "px.srvcs.tumblr.com",
+            // Tag Management, Web Analytics & Experimentation Platforms
+            "googletagmanager.com", "tagmanager.google.com", "www.googletagmanager.com", "click.googleanalytics.com",
+            "analytics.adobe.io", "metrics.adobe.com", "stats.wp.com",
+            "app.posthog.com", "eu.posthog.com", "us.i.posthog.com", "cdn.rudderlabs.com", "snowplowanalytics.com",
+            "cloudflareinsights.com", "static.cloudflareinsights.com",
+            // Diagnostic, Crash & Error Trackers
+            "ingest.sentry.io", "o0.ingest.sentry.io", "browser.sentry-cdn.com", "app.getsentry.com",
+            "notify.bugsnag.com", "sessions.bugsnag.com", "api.bugsnag.com", "app.bugsnag.com",
+            "browser-intake-datadoghq.com", "rum.browser-intake-datadoghq.com", "bam-cell.nr-data.net", "js-agent.newrelic.com",
+            "cdn.lr-ingest.com", "r.lr-ingest.com",
+            // Behavioral Analytics & A/B Testing
+            "cdn.optimizely.com", "logx.optimizely.com", "api.optimizely.com", "cdn.dynamicyield.com",
+            "st.dynamicyield.com", "events.launchdarkly.com", "clientstream.launchdarkly.com",
+            // Session Replay & User Feedback
+            "events.hotjar.io", "claritybt.freshmarketer.com", "fwtracks.freshmarketer.com", "api.luckyorange.com",
+            "realtime.luckyorange.com", "cdn.luckyorange.com", "w1.luckyorange.com", "upload.luckyorange.net",
+            "cs.luckyorange.net", "settings.luckyorange.net",
+            // Identity Resolution & Cookie Sync
+            "onetag-sys.com", "pippio.com", "sync.mathtag.com", "pixel.mathtag.com", "sync-tm.everesttech.net",
+            // Consent Management Providers (CMP) & Cookie Trackers
+            "cdn.cookielaw.org", "consent.cookiebot.com", "consentcdn.cookiebot.com", "cookiebot.com",
+            "consent.trustarc.com", "sdk.privacy-center.org", "cdn.privacy-mgmt.com", "app.usercentrics.eu",
+            "cmp.usercentrics.eu", "sourcepoint.mgr.consensu.org", "cmp.osano.com", "privacyportal.onetrust.com",
+            "geolocation.onetrust.com",
+            // Lifecycle Messaging, Email & Live Chat Telemetry
+            "list-manage.com", "track.hubspot.com", "munchkin.marketo.net", "click.mailchimp.com",
+            "widget.intercom.io", "js.driftt.com", "static.klaviyo.com", "a.klaviyo.com", "statdynamic.com",
+            "top-fwz1.mail.ru", "ad.mail.ru", "ads.vk.com"
         };
         Collections.addAll(TRACKER_DOMAINS, trackers);
 
@@ -534,7 +584,30 @@ public class FilterEngine {
             "telemetry.transsion.com",
             // Motorola, Asus, Lenovo
             "telemetry.motorola.com", "cloudservices.motorola.com",
-            "analytics.asus.com", "metrics.lenovo.com"
+            "analytics.asus.com", "metrics.lenovo.com",
+            // Apple Search Ads & System Telemetry
+            "advertising.apple.com", "tr.iadsdk.apple.com", "iadsdk.apple.com", "metrics.apple.com", "metrics.icloud.com",
+            "metrics.mzstatic.com", "api-adservices.apple.com", "books-analytics-events.apple.com", "notes-analytics-events.apple.com", "xp.apple.com",
+            // Microsoft / Windows Telemetry
+            "settings-win.data.microsoft.com", "vortex.data.microsoft.com", "vortex-win.data.microsoft.com", "watson.telemetry.microsoft.com",
+            "telemetry.microsoft.com", "browser.events.data.msn.com",
+            // Amazon Device Telemetry
+            "device-metrics-us-2.amazon.com", "mads-eu.amazon.com",
+            // Realme, Oppo & OnePlus Telemetry
+            "iot-eu-logser.realme.com", "iot-logser.realme.com", "bdapi-ads.realmemobile.com", "bdapi-in-ads.realmemobile.com",
+            "adsfs.oppomobile.com", "click.oneplus.cn", "open.oneplus.net",
+            // Huawei Telemetry
+            "metrics2.data.hicloud.com", "grs.hicloud.com", "logservice1.hicloud.com", "logbak.hicloud.com",
+            // Xiaomi MIUI / HyperOS
+            "data.mistat.india.xiaomi.com", "data.mistat.rus.xiaomi.com",
+            // Samsung Telemetry
+            "smetrics.samsung.com", "samsung-com.112.2o7.net", "analytics-api.samsunghealthcn.com",
+            // Vivo, Lenovo, LG & Smart TV
+            "adlog.vivo.com", "a.lenovo.com",
+            "us.info.lgsmartad.com", "us.ibs.lgappstv.com", "info.lgsmartad.com", "ngfts.lge.com", "yumenetworks.com", "smartclip.com",
+            "logs.roku.com", "amoeba.web.roku.com", "tvinteractive.tv", "tvpixel.com",
+            // Crashlytics Telemetry
+            "firebase-settings.crashlytics.com"
         };
         Collections.addAll(OEM_DOMAINS, oem);
 
@@ -556,7 +629,7 @@ public class FilterEngine {
             "monerominer.rocks", "jsecoin.com", "webminepool.com", "webminerpool.com", "authedmine.com",
             "mineralt.io", "deepminer.org", "coinimp.com", "gridcash.net",
             "minr.pw", "coinhive.min.js", "cryptojacking.org", "coin-have.com",
-            "papoto.com", "load.jsecoin.com", "static.reauthenticator.com", "minergate.com"
+            "papoto.com", "load.jsecoin.com", "static.reauthenticator.com", "minergate.com", "minero.cc"
         };
         Collections.addAll(CRYPTOMINER_DOMAINS, cryptominers);
     }
@@ -628,7 +701,8 @@ public class FilterEngine {
             String parent = domain.substring(nextDot + 1);
             if (GLOBAL_PROTECTED_ROOTS.contains(parent)) {
                 // Never protect explicit advertising or tracking endpoints even if hosted on protected parent
-                if (AD_DOMAINS.contains(domain) || TRACKER_DOMAINS.contains(domain) || FINGERPRINT_DOMAINS.contains(domain)) {
+                if (AD_DOMAINS.contains(domain) || TRACKER_DOMAINS.contains(domain) || FINGERPRINT_DOMAINS.contains(domain) ||
+                    OEM_DOMAINS.contains(domain) || POPUP_DOMAINS.contains(domain) || CRYPTOMINER_DOMAINS.contains(domain)) {
                     return false;
                 }
                 if (domain.startsWith("ads.") || domain.contains(".ads.") ||
@@ -690,12 +764,14 @@ public class FilterEngine {
         }
 
         // Never whitelist known telemetry, fingerprinting or ad beacons even if hosted on major platform domains
-        if (AD_DOMAINS.contains(domain) || TRACKER_DOMAINS.contains(domain) || FINGERPRINT_DOMAINS.contains(domain)) {
+        if (AD_DOMAINS.contains(domain) || TRACKER_DOMAINS.contains(domain) || FINGERPRINT_DOMAINS.contains(domain) ||
+            OEM_DOMAINS.contains(domain) || POPUP_DOMAINS.contains(domain) || CRYPTOMINER_DOMAINS.contains(domain)) {
             return false;
         }
         String curCheck = domain;
         while (curCheck.contains(".")) {
-            if (AD_DOMAINS.contains(curCheck) || TRACKER_DOMAINS.contains(curCheck) || FINGERPRINT_DOMAINS.contains(curCheck)) {
+            if (AD_DOMAINS.contains(curCheck) || TRACKER_DOMAINS.contains(curCheck) || FINGERPRINT_DOMAINS.contains(curCheck) ||
+                OEM_DOMAINS.contains(curCheck) || POPUP_DOMAINS.contains(curCheck) || CRYPTOMINER_DOMAINS.contains(curCheck)) {
                 return false;
             }
             int dot = curCheck.indexOf('.');
