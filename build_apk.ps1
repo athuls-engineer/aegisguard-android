@@ -90,7 +90,7 @@ try {
 }
 
 Write-Host "=== Step 6: 4-Byte ZipAligning APK ===" -ForegroundColor Cyan
-$AlignedApk = "$OutDir\AegisGuard-v3.1.6-aligned.apk"
+$AlignedApk = "$OutDir\AegisGuard-v3.1.7-aligned.apk"
 & $Zipalign -p -f -v 4 "$UnsignedApk" "$AlignedApk" | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "Zipalign failed" }
 
@@ -109,7 +109,7 @@ if (!(Test-Path $Keystore)) {
 }
 
 Write-Host "=== Step 8: Cryptographically Signing APK (v1, v2, v3 schemes) ===" -ForegroundColor Cyan
-$FinalApk = "$OutDir\AegisGuard-v3.1.6-release.apk"
+$FinalApk = "$OutDir\AegisGuard-v3.1.7-release.apk"
 & cmd.exe /c "`"$ApkSigner`" sign --ks `"$Keystore`" --ks-pass pass:aegisguardpass --key-pass pass:aegisguardpass --ks-key-alias aegisguard --out `"$FinalApk`" `"$AlignedApk`""
 if ($LASTEXITCODE -ne 0) { throw "ApkSigner failed" }
 
@@ -118,13 +118,13 @@ Write-Host "=== Step 9: Verifying APK Signatures ===" -ForegroundColor Cyan
 if ($LASTEXITCODE -ne 0) { throw "Apk verification failed" }
 
 # Copy to user's Downloads, Project root (HTTP Server), and brain artifact directory
-$DownloadsApk = "C:\Users\athul_nuy2ni9\Downloads\AegisGuard-v3.1.6-release.apk"
+$DownloadsApk = "C:\Users\athul_nuy2ni9\Downloads\AegisGuard-v3.1.7-release.apk"
 Copy-Item -Force $FinalApk $DownloadsApk
-Copy-Item -Force $FinalApk "$ProjectDir\AegisGuard-v3.1.6-release.apk"
+Copy-Item -Force $FinalApk "$ProjectDir\AegisGuard-v3.1.7-release.apk"
 
 $BrainDir = "C:\Users\athul_nuy2ni9\.gemini\antigravity\brain\33d1dec8-b1ae-4695-9d9a-e8d94b5ec2a3"
 if (Test-Path $BrainDir) {
-    Copy-Item -Force $FinalApk "$BrainDir\AegisGuard-v3.1.6-release.apk"
+    Copy-Item -Force $FinalApk "$BrainDir\AegisGuard-v3.1.7-release.apk"
 }
 
 Write-Host "==========================================================" -ForegroundColor Green

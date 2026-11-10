@@ -112,14 +112,7 @@ public class DnsForwarder {
             DatagramSocket socket = new DatagramSocket();
             vpnService.protect(socket);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                Network net = null;
-                ConnectivityManager cm = (ConnectivityManager) vpnService.getSystemService(Context.CONNECTIVITY_SERVICE);
-                if (cm != null) {
-                    net = cm.getActiveNetwork();
-                }
-                if (net == null) {
-                    net = this.underlyingNetwork;
-                }
+                Network net = this.underlyingNetwork;
                 if (net != null) {
                     try {
                         net.bindSocket(socket);
@@ -232,15 +225,24 @@ public class DnsForwarder {
                     newServers.add(InetAddress.getByName("8.8.8.8"));
                 }
             } else {
-                // "racing" - Dual-Stack Anycast & Local Edge Race:
-                // 1. Physical ISP / Local Router Gateway DNS (IPv4 & IPv6) - Local Edge (1-3ms) & Carrier Bypass
+                // "racing" - Dual-Stack Anycast & Anti-Poisoning Race:
+                // 1. Cloudflare Anycast (1.1.1.1 / 1.0.0.1) - Sub-5ms ultra-resilient, unpolluted, zero ISP censorship
+                newServers.add(InetAddress.getByName("1.1.1.1"));
+                newServers.add(InetAddress.getByName("1.0.0.1"));
+                // 2. Google Public DNS (8.8.8.8 / 8.8.4.4) - Optimal CDN edge routing
+                newServers.add(InetAddress.getByName("8.8.8.8"));
+                newServers.add(InetAddress.getByName("8.8.4.4"));
+                // 3. Quad9 Anycast (9.9.9.9) - Global high-reputation security resolver
+                newServers.add(InetAddress.getByName("9.9.9.9"));
+                try {
+                    newServers.add(InetAddress.getByName("2606:4700:4700::1111"));
+                    newServers.add(InetAddress.getByName("2001:4860:4860::8888"));
+                } catch (Exception ignored) {}
+
+                // 4. Physical ISP / Local Router Gateway DNS (IPv4 & IPv6) as supplementary local edge
                 ConnectivityManager cm = (ConnectivityManager) vpnService.getSystemService(Context.CONNECTIVITY_SERVICE);
                 if (cm != null) {
                     Network targetNetwork = this.underlyingNetwork;
-                    if (targetNetwork == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        targetNetwork = cm.getActiveNetwork();
-                    }
-
                     if (targetNetwork != null) {
                         LinkProperties lp = cm.getLinkProperties(targetNetwork);
                         if (lp != null && lp.getDnsServers() != null) {
@@ -258,20 +260,6 @@ public class DnsForwarder {
                         }
                     }
                 }
-
-                // 2. Google Public DNS (IPv4) - Full EDNS Client Subnet (ECS) support guarantees optimal regional CDN edge
-                newServers.add(InetAddress.getByName("8.8.8.8"));
-                // 3. Cloudflare Anycast (IPv4) - Sub-5ms ultra-resilient fallback
-                newServers.add(InetAddress.getByName("1.1.1.1"));
-                // 4. Quad9 Anycast (IPv4)
-                newServers.add(InetAddress.getByName("9.9.9.9"));
-                // 5. Secondary Tier-1 Anycast Upstreams
-                newServers.add(InetAddress.getByName("8.8.4.4"));
-                newServers.add(InetAddress.getByName("1.0.0.1"));
-                try {
-                    newServers.add(InetAddress.getByName("2606:4700:4700::1111"));
-                    newServers.add(InetAddress.getByName("2001:4860:4860::8888"));
-                } catch (Exception ignored) {}
             }
 
             if (!newServers.isEmpty()) {
@@ -474,8 +462,9 @@ public class DnsForwarder {
                 int remaining = (int) (deadline - now);
                 if (remaining <= 0) break;
 
-                // If a Type A query received NODATA, wait at most 25ms for a racing resolver that has real IP records
-                if (backupEmptyResponse != null && (now - emptyReceivedTime) >= 25) {
+                // For Type A queries, wait at least 350ms to allow Anycast resolvers (Cloudflare/Google)
+                // to race before accepting an empty NODATA or ISP sinkhole response.
+                if (backupEmptyResponse != null && (now - startTime) >= 350) {
                     return backupEmptyResponse;
                 }
 
@@ -511,7 +500,7 @@ public class DnsForwarder {
 
                 int nextTimeout = remaining;
                 if (backupEmptyResponse != null) {
-                    nextTimeout = Math.min(nextTimeout, Math.max(5, (int) (25 - (now - emptyReceivedTime))));
+                    nextTimeout = Math.min(nextTimeout, Math.max(5, (int) (350 - (now - startTime))));
                 } else if (!firstRetryDone) {
                     nextTimeout = Math.min(remaining, Math.max(10, (int) (RETRY_INTERVAL_MS - (now - startTime))));
                 } else if (!secondRetryDone) {
@@ -530,13 +519,20 @@ public class DnsForwarder {
 
                             if (rcode == 0) {
                                 if (ancount > 0) {
-                                    // NOERROR with Answer Records -> True winning answer! Return immediately!
-                                    return Arrays.copyOf(recvBuffer, respLen);
+                                    if (DnsPacketParser.hasValidIpAnswer(recvBuffer)) {
+                                        // True winning answer with valid IP! Return immediately!
+                                        return Arrays.copyOf(recvBuffer, respLen);
+                                    } else {
+                                        // Answer contains 0.0.0.0 or 127.0.0.1 (ISP sinkhole / bogus record)
+                                        if (backupEmptyResponse == null) {
+                                            backupEmptyResponse = Arrays.copyOf(recvBuffer, respLen);
+                                            emptyReceivedTime = System.currentTimeMillis();
+                                        }
+                                    }
                                 } else {
                                     // NOERROR with ANCOUNT == 0 (NODATA).
                                     // For AAAA (IPv6), HTTPS (Type 65), CNAME, TXT, etc.:
                                     // The domain has no records of this type. Return immediately without stalling!
-                                    // This eliminates 120ms of artificial lag on every dual-stack Android connection.
                                     if (qType != 1) { // 1 = TYPE_A
                                         return Arrays.copyOf(recvBuffer, respLen);
                                     }

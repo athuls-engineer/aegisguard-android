@@ -237,12 +237,44 @@ public class AegisVpnService extends VpnService implements Runnable {
                     @Override
                     public void onLost(Network network) {
                         if (dnsForwarder != null) {
+                            dnsForwarder.setUnderlyingNetwork(null);
                             dnsForwarder.drainSocketPool();
                         }
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+
+                        // Seamless network handoff: Check if an alternate physical network (e.g. 4G/5G) is already available
+                        Network fallbackNet = null;
+                        if (connectivityManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                             try {
-                                setUnderlyingNetworks(null);
-                            } catch (Exception ignored) {}
+                                Network[] allNets = connectivityManager.getAllNetworks();
+                                if (allNets != null) {
+                                    for (Network n : allNets) {
+                                        if (n.equals(network)) continue;
+                                        NetworkCapabilities caps = connectivityManager.getNetworkCapabilities(n);
+                                        if (caps != null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                                            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)) {
+                                            fallbackNet = n;
+                                            break;
+                                        }
+                                    }
+                                }
+                            } catch (Throwable ignored) {}
+                        }
+
+                        if (fallbackNet != null) {
+                            if (dnsForwarder != null) {
+                                dnsForwarder.setUnderlyingNetwork(fallbackNet);
+                            }
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                                try {
+                                    setUnderlyingNetworks(new Network[]{ fallbackNet });
+                                } catch (Exception ignored) {}
+                            }
+                        } else {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                                try {
+                                    setUnderlyingNetworks(null);
+                                } catch (Exception ignored) {}
+                            }
                         }
                     }
                 };

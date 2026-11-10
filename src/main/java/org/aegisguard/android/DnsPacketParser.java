@@ -517,4 +517,60 @@ public class DnsPacketParser {
         }
         return null;
     }
+
+    /**
+     * Checks if a raw DNS response contains at least one valid, non-sinkhole, non-loopback IP record.
+     * Prevents accepting ISP DNS hijack answers (such as 0.0.0.0, 127.0.0.1, or ISP block-page redirection)
+     * when querying legitimate websites.
+     */
+    public static boolean hasValidIpAnswer(byte[] dnsPayload) {
+        if (dnsPayload == null || dnsPayload.length < 12) return false;
+        int anCount = ((dnsPayload[6] & 0xFF) << 8) | (dnsPayload[7] & 0xFF);
+        if (anCount <= 0) return false;
+
+        int pos = 12;
+        int qdCount = ((dnsPayload[4] & 0xFF) << 8) | (dnsPayload[5] & 0xFF);
+        for (int q = 0; q < qdCount && pos < dnsPayload.length; q++) {
+            while (pos < dnsPayload.length) {
+                int len = dnsPayload[pos] & 0xFF;
+                if (len == 0) { pos++; break; }
+                if ((len & 0xC0) == 0xC0) { pos += 2; break; }
+                pos += 1 + len;
+            }
+            pos += 4;
+        }
+
+        for (int a = 0; a < anCount && pos < dnsPayload.length; a++) {
+            while (pos < dnsPayload.length) {
+                int len = dnsPayload[pos] & 0xFF;
+                if (len == 0) { pos++; break; }
+                if ((len & 0xC0) == 0xC0) { pos += 2; break; }
+                pos += 1 + len;
+            }
+            if (pos + 10 > dnsPayload.length) break;
+
+            int type = ((dnsPayload[pos] & 0xFF) << 8) | (dnsPayload[pos + 1] & 0xFF);
+            int rdLength = ((dnsPayload[pos + 8] & 0xFF) << 8) | (dnsPayload[pos + 9] & 0xFF);
+            pos += 10;
+            if (pos + rdLength > dnsPayload.length) break;
+
+            if (type == TYPE_A && rdLength == 4) {
+                int b0 = dnsPayload[pos] & 0xFF;
+                // Reject 0.0.0.0 and 127.x.x.x (standard ISP sinkhole / loopback responses)
+                if (b0 == 0 || b0 == 127) {
+                    pos += rdLength;
+                    continue;
+                }
+                return true;
+            } else if (type == TYPE_AAAA && rdLength == 16) {
+                boolean allZero = true;
+                for (int i = 0; i < 16; i++) {
+                    if (dnsPayload[pos + i] != 0) { allZero = false; break; }
+                }
+                if (!allZero) return true;
+            }
+            pos += rdLength;
+        }
+        return false;
+    }
 }
