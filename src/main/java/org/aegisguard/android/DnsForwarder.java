@@ -326,7 +326,7 @@ public class DnsForwarder {
                             try {
                                 byte[] fresh = forwardUpstream(queryPayloadCopy, originalTxId, qType, qName);
                                 if (fresh != null && fresh.length >= 12 && (fresh[3] & 0x0F) == 0) {
-                                    FilterEngine.MatchResult cnameMatch = DnsPacketParser.findBlockedCnameTarget(fresh);
+                                    FilterEngine.MatchResult cnameMatch = FilterEngine.isEssentialService(qName) ? null : DnsPacketParser.findBlockedCnameTarget(fresh);
                                     if (cnameMatch != null && cnameMatch.isBlocked()) {
                                         cache.remove(cacheKey);
                                     } else {
@@ -355,7 +355,7 @@ public class DnsForwarder {
             int rcode = rawResponse[3] & 0x0F;
             if (rcode == 0) {
                 // CNAME Cloaking Unmasking (In-App Ad & Interstitial Neutralization)
-                FilterEngine.MatchResult cnameMatch = DnsPacketParser.findBlockedCnameTarget(rawResponse);
+                FilterEngine.MatchResult cnameMatch = FilterEngine.isEssentialService(query.qName) ? null : DnsPacketParser.findBlockedCnameTarget(rawResponse);
                 if (cnameMatch != null && cnameMatch.isBlocked()) {
                     Log.i(TAG, "CNAME cloaked in-app ad unmasked: " + query.qName + " -> " + cnameMatch.rule);
                     byte[] sinkholePayload = DnsPacketParser.createSinkholeDnsPayload(packet, length, query);
@@ -651,8 +651,8 @@ public class DnsForwarder {
                     "discord.com", "discord.gg", "cdn.discordapp.com", "media.discordapp.net",
                     // Reddit
                     "reddit.com", "gateway.reddit.com", "gql.reddit.com", "redd.it",
-                    // YouTube & Google Infrastructure & ABR QoS
-                    "youtube.com", "googlevideo.com", "ytimg.com", "google.com", "gstatic.com",
+                    // YouTube & Google Infrastructure, Watch History & ABR QoS
+                    "youtube.com", "s.youtube.com", "googlevideo.com", "ytimg.com", "google.com", "gstatic.com",
                     "video-stats.l.google.com",
                     // Netflix Video & Streaming Infrastructure
                     "netflix.com", "nflxvideo.net", "nflximg.net",

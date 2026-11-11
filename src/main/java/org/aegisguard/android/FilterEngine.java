@@ -410,7 +410,7 @@ public class FilterEngine {
             "gemini.yahoo.com", "geo.yahoo.com", "htlbid.com", "insightexpressai.com", "insights.adsrvr.org",
             "ironsource.mobi", "log.fc.yahoo.com", "match.adsrvr.org", "metrics.brightcove.com", "metrika.yandex.ru",
             "mssl.fwmrm.net", "offerwall.yandex.net", "onclickads.net", "pangleglobal.com", "partnerads.ysm.yahoo.com",
-            "pixel.adsafeprotected.com", "prd.jwpltx.com", "propellerclick.com", "s.youtube.com", "ssl.p.jwpcdn.com",
+            "pixel.adsafeprotected.com", "prd.jwpltx.com", "propellerclick.com",
             "static.adsafeprotected.com", "stickyadstv.com", "udc.yahoo.com", "udcm.yahoo.com"
         };
         Collections.addAll(AD_DOMAINS, ads);
@@ -814,9 +814,16 @@ public class FilterEngine {
             domain.equals("messenger.com") || domain.endsWith(".messenger.com") ||
             domain.equals("snapchat.com") || domain.endsWith(".snapchat.com") ||
             domain.equals("sc-cdn.net") || domain.endsWith(".sc-cdn.net") ||
-            // Google & YouTube Core Infrastructure & Streaming Delivery (with ABR video-stats QoS)
+            // Google & YouTube Core Infrastructure, Watch History (s.youtube.com), & Streaming Delivery (with ABR video-stats QoS)
+            domain.equals("s.youtube.com") || domain.endsWith(".s.youtube.com") ||
+            domain.equals("s2.youtube.com") || domain.endsWith(".s2.youtube.com") ||
             domain.equals("video-stats.l.google.com") || domain.endsWith(".video-stats.l.google.com") ||
+            domain.equals("video-stats.video.google.com") || domain.endsWith(".video-stats.video.google.com") ||
             domain.equals("video-stats.googlevideo.com") || domain.endsWith(".video-stats.googlevideo.com") ||
+            domain.equals("ajay.app") || domain.endsWith(".ajay.app") ||
+            domain.equals("revanced.app") || domain.endsWith(".revanced.app") ||
+            domain.equals("morphe.software") || domain.endsWith(".morphe.software") ||
+            domain.equals("returnyoutubedislikeapi.com") || domain.endsWith(".returnyoutubedislikeapi.com") ||
             domain.equals("google.com") || domain.endsWith(".google.com") ||
             domain.equals("youtube.com") || domain.endsWith(".youtube.com") ||
             domain.equals("googlevideo.com") || domain.endsWith(".googlevideo.com") ||
