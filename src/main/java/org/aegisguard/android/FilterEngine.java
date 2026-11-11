@@ -170,6 +170,34 @@ public class FilterEngine {
     private static final Set<String> CRYPTOMINER_DOMAINS = new HashSet<>(128);
     public static final Set<String> DYNAMIC_DOMAINS = Collections.synchronizedSet(new HashSet<String>(4096));
 
+    // Lock-free atomic snapshot sets populated by DynamicFilterManager multi-feed auto-updates
+    private static volatile Set<String> liveDynamicAds = Collections.emptySet();
+    private static volatile Set<String> liveDynamicTrackers = Collections.emptySet();
+    private static volatile Set<String> liveDynamicFingerprints = Collections.emptySet();
+    private static volatile Set<String> liveDynamicExceptions = Collections.emptySet();
+
+    public static void updateDynamicRuleSnapshots(Set<String> ads, Set<String> trackers, Set<String> fingerprints, Set<String> exceptions) {
+        liveDynamicAds = (ads == null || ads.isEmpty()) ? Collections.<String>emptySet() : Collections.unmodifiableSet(new HashSet<>(ads));
+        liveDynamicTrackers = (trackers == null || trackers.isEmpty()) ? Collections.<String>emptySet() : Collections.unmodifiableSet(new HashSet<>(trackers));
+        liveDynamicFingerprints = (fingerprints == null || fingerprints.isEmpty()) ? Collections.<String>emptySet() : Collections.unmodifiableSet(new HashSet<>(fingerprints));
+        liveDynamicExceptions = (exceptions == null || exceptions.isEmpty()) ? Collections.<String>emptySet() : Collections.unmodifiableSet(new HashSet<>(exceptions));
+    }
+
+    public static void clearDynamicRuleSnapshots() {
+        liveDynamicAds = Collections.emptySet();
+        liveDynamicTrackers = Collections.emptySet();
+        liveDynamicFingerprints = Collections.emptySet();
+        liveDynamicExceptions = Collections.emptySet();
+    }
+
+    public static int getDynamicRulesCount() {
+        return DYNAMIC_DOMAINS.size() + liveDynamicAds.size() + liveDynamicTrackers.size() + liveDynamicFingerprints.size();
+    }
+
+    public static boolean isSharedHostingSuffix(String domain) {
+        return domain != null && SHARED_HOSTING_SUFFIXES.contains(domain);
+    }
+
     // High-performance heuristic ad subdomain labels (O(1) instant match)
     private static final Set<String> AD_SUBDOMAIN_LABELS = new HashSet<>(Arrays.asList(
         "ad", "ads", "adserver", "adservers", "adservice", "adservices",
@@ -875,10 +903,12 @@ public class FilterEngine {
             domain.equals("apple.com") || domain.endsWith(".apple.com") || domain.endsWith(".icloud.com") ||
             domain.equals("microsoft.com") || domain.endsWith(".microsoft.com") || domain.endsWith(".office.com") ||
             domain.equals("wikipedia.org") || domain.endsWith(".wikipedia.org") ||
-            // Developer & Knowledge Platforms
+            // Developer, Filter Feeds & Knowledge Platforms
             domain.equals("github.com") || domain.endsWith(".github.com") ||
             domain.equals("github.io") || domain.endsWith(".github.io") || domain.endsWith(".githubusercontent.com") ||
             domain.equals("gitlab.com") || domain.endsWith(".gitlab.com") ||
+            domain.equals("adaway.org") || domain.endsWith(".adaway.org") ||
+            domain.equals("firebog.net") || domain.endsWith(".firebog.net") ||
             domain.equals("stackoverflow.com") || domain.endsWith(".stackoverflow.com") ||
             // AI Services
             domain.equals("openai.com") || domain.endsWith(".openai.com") ||
@@ -1194,16 +1224,6 @@ public class FilterEngine {
             return new MatchResult(Decision.CLEAN, "Essential Service", "Whitelisted");
         }
 
-        // 3.5 DYNAMIC CLOUD THREAT SINKHOLE:
-        // Evaluates dynamically downloaded zero-day ad & malware signatures with 100% Zero-Breakage Guarantee.
-        // A dynamic rule can NEVER sinkhole any real website, web platform, or essential service!
-        if (DYNAMIC_DOMAINS.contains(domain)) {
-            if (isProtectedWebsite(domain) || isEssentialService(domain)) {
-                return new MatchResult(Decision.CLEAN, "Protected Web Asset", "Whitelisted");
-            }
-            return new MatchResult(Decision.BLOCK_AD, "Global Threat Feed (Auto-Updated)", "Aegis_Dynamic_Cloud:" + domain);
-        }
-
         // 4. Suffix walk: sub.adservice.google.com -> adservice.google.com -> google.com
         current = domain;
         while (current.contains(".")) {
@@ -1235,6 +1255,13 @@ public class FilterEngine {
             int nextDot = current.indexOf('.');
             if (nextDot == -1) break;
             current = current.substring(nextDot + 1);
+        }
+
+        // 4.5 DYNAMIC AUTO-UPDATED THREAT & EXCEPTION ENGINE (Zero-Breakage Guarded):
+        // Evaluates merged live Ads, Trackers, Fingerprinting, and upstream @@|| unbreak exceptions.
+        MatchResult dynamicResult = evaluateDynamicRules(domain);
+        if (dynamicResult != null) {
+            return dynamicResult;
         }
 
         // 5. Fast Heuristic detection on standard ad, banner, tracker & fingerprinting subdomains
@@ -1357,9 +1384,67 @@ public class FilterEngine {
         return new MatchResult(Decision.CLEAN, "Clean Traffic", "Whitelisted");
     }
 
+    private static boolean isDynamicException(String domain) {
+        if (liveDynamicExceptions.isEmpty() || domain == null) {
+            return false;
+        }
+        String current = domain;
+        while (current.contains(".")) {
+            if (liveDynamicExceptions.contains(current)) {
+                return true;
+            }
+            int nextDot = current.indexOf('.');
+            if (nextDot == -1) break;
+            current = current.substring(nextDot + 1);
+        }
+        return false;
+    }
+
+    private static MatchResult evaluateDynamicRules(String domain) {
+        if (isProtectedWebsite(domain) || isEssentialService(domain)) {
+            return DYNAMIC_DOMAINS.contains(domain)
+                ? new MatchResult(Decision.CLEAN, "Protected Web Asset", "Whitelisted")
+                : null;
+        }
+        if (isDynamicException(domain)) {
+            return new MatchResult(Decision.CLEAN, "Upstream Unbreak Exception", "Aegis_Dynamic_Exception:" + domain);
+        }
+        if (blockAds && DYNAMIC_DOMAINS.contains(domain)) {
+            return new MatchResult(Decision.BLOCK_AD, "Global Threat Feed (Auto-Updated)", "Aegis_Dynamic_Cloud:" + domain);
+        }
+
+        Set<String> fpSet = liveDynamicFingerprints;
+        Set<String> trkSet = liveDynamicTrackers;
+        Set<String> adSet = liveDynamicAds;
+        if (fpSet.isEmpty() && trkSet.isEmpty() && adSet.isEmpty()) {
+            return null;
+        }
+
+        // Safe suffix walk stops at shared hosting or global protected roots to prevent collateral breakage
+        String current = domain;
+        while (current.contains(".")) {
+            if (SHARED_HOSTING_SUFFIXES.contains(current) || GLOBAL_PROTECTED_ROOTS.contains(current)) {
+                break;
+            }
+            if (blockFingerprint && fpSet.contains(current)) {
+                return new MatchResult(Decision.BLOCK_FINGERPRINT, "Auto-Updated Fingerprinting Shield", "Aegis_Live_Fingerprint:" + current);
+            }
+            if (blockTrackers && trkSet.contains(current)) {
+                return new MatchResult(Decision.BLOCK_TRACKER, "Auto-Updated Tracker Shield", "Aegis_Live_Tracker:" + current);
+            }
+            if (blockAds && adSet.contains(current)) {
+                return new MatchResult(Decision.BLOCK_AD, "Auto-Updated Ad Shield", "Aegis_Live_Ad:" + current);
+            }
+            int nextDot = current.indexOf('.');
+            if (nextDot == -1) break;
+            current = current.substring(nextDot + 1);
+        }
+        return null;
+    }
+
     public static int getTotalRulesCount() {
         return AD_DOMAINS.size() + POPUP_DOMAINS.size() + TRACKER_DOMAINS.size() + 
                FINGERPRINT_DOMAINS.size() + OEM_DOMAINS.size() + MALWARE_DOMAINS.size() +
-               CRYPTOMINER_DOMAINS.size() + CUSTOM_BLACKLIST.size() + DYNAMIC_DOMAINS.size();
+               CRYPTOMINER_DOMAINS.size() + CUSTOM_BLACKLIST.size() + getDynamicRulesCount();
     }
 }

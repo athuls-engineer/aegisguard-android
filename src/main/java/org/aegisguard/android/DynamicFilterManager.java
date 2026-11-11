@@ -13,32 +13,25 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.zip.GZIPInputStream;
 
 /**
- * Dynamic Threat Intelligence Engine (v2.8.7 Ultra).
- * 
- * Features:
- * 1. Autonomous 5-Hour Background Auto-Update: Fetches latest zero-day ad networks,
- *    surveillance trackers, and fingerprinting probes globally.
- * 2. Multi-Source Resilient Feed Failover: Automatically tries redundant secure endpoints.
- * 3. Local Offline Persistence: Stores compiled dynamic rules to internal storage
- *    so protection persists immediately across reboots even with zero network.
- * 4. Zero False-Positive Filter: Evaluates every downloaded rule against essential
- *    application whitelists (Telegram, WhatsApp, YouTube streaming, Twitch streaming, Spotify).
- * 5. Atomic In-Memory Hot-Reload: Replaces active memory sets in < 1ms without dropping VPN packets.
+ * Dynamic Threat Intelligence Engine (v3.1.11).
+ *
+ * 1. Auto-Enabled by Default: Autonomous 5-hour background sync + boot & network-recovery sync.
+ * 2. Multi-Feed Categorized Ingestion: Pulls and merges fresh Ads, Trackers, Fingerprinting,
+ *    and upstream @@|| unbreak exceptions via DynamicFeedParser with HaGeZi Light failover.
+ * 3. Atomic Lock-Free Hot-Swap & Temp-File Persistence: Never blocks VPN packet forwarding
+ *    and flushes stale DNS cache entries right after updating rules.
+ * 4. Multi-Layer Zero-Breakage Safety: Sanitizes every rule at ingestion and evaluation time.
  */
 public class DynamicFilterManager {
 
@@ -47,129 +40,97 @@ public class DynamicFilterManager {
     public static final String KEY_AUTO_UPDATE = "auto_update_threat_filters";
     public static final String KEY_LAST_UPDATE = "last_threat_update_time";
     public static final String KEY_DYNAMIC_COUNT = "dynamic_rules_count";
+    private static final String KEY_V311_INITIALIZED = "auto_update_v311_initialized";
+    public static final boolean DEFAULT_AUTO_UPDATE = true;
 
     // 5 Hours = 5 * 60 * 60 * 1000 milliseconds
     public static final long UPDATE_INTERVAL_MS = 5 * 60 * 60 * 1000L;
-    private static final String CACHE_FILE_NAME = "aegis_dynamic_threat_cache_v313.txt";
-    private static final int MAX_DYNAMIC_RULES = 35000; // Optimal memory bounds for low-end hardware
-
-    // Curated Global Threat Intelligence Feeds (Strictly validated to avoid false positives and site breakage)
-    private static final String[] THREAT_FEED_URLS = new String[] {
-        // Peter Lowe's gold standard curated adserver list (Zero false positives, strictly verified ad networks only)
-        "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext"
-    };
-
-    public static boolean isGlobalProtectedRoot(String domain) {
-        return FilterEngine.isGlobalProtectedRoot(domain);
-    }
-
-    private static final Set<String> FUNCTIONAL_SUBDOMAIN_PREFIXES = new HashSet<>(java.util.Arrays.asList(
-        "www", "api", "apis", "cdn", "cdns", "asset", "assets", "static", "img", "imgs", "image", "images",
-        "media", "content", "auth", "login", "sso", "signin", "signup", "checkout", "pay", "payment",
-        "payments", "shop", "store", "app", "mobile", "portal", "cloud", "edge", "download", "downloads",
-        "secure", "mail", "email", "help", "support", "docs", "gateway", "connect", "status", "service",
-        "services", "my", "account", "accounts", "user", "users", "dashboard", "client", "clients",
-        "node", "srv", "server", "prod", "main", "stream", "video", "audio", "voice", "rtc", "web",
-        "track", "tracking", "tracker", "stats", "pixel", "order", "orders", "delivery"
-    ));
-
-    /**
-     * Bulletproof Ingestion Validator:
-     * Guarantees that dynamically downloaded rules NEVER contain functional website assets,
-     * apex website domains, educational/government TLDs, parcel logistics, or essential services.
-     */
-    public static boolean isSafeDynamicDomain(String domain) {
-        if (domain == null || domain.length() < 4) return false;
-        String d = domain.toLowerCase(Locale.US);
-        if (FilterEngine.isEssentialService(d) || FilterEngine.isProtectedWebsite(d) || FilterEngine.isGlobalProtectedRoot(d)) {
-            return false;
-        }
-
-        // Never ingest parcel logistics or postal services (delhivery, bluedart, dhl, fedex, indiapost)
-        if (d.contains(".track.") || d.startsWith("track.") || d.startsWith("tracking.") || d.startsWith("tracker.")) {
-            return false;
-        }
-
-        // Never ingest Dutch/European news (ad.nl) or corporate active directory (.ad.)
-        if (d.equals("ad.nl") || d.endsWith(".ad.nl") || d.equals("ad.si") || d.endsWith(".ad.si") || d.contains(".ad.")) {
-            return false;
-        }
-
-        // Reject critical public, government, educational, banking & infrastructure TLDs
-        if (d.endsWith(".edu") || d.endsWith(".gov") || d.endsWith(".mil") ||
-            d.endsWith(".gov.in") || d.endsWith(".nic.in") || d.endsWith(".ac.uk") ||
-            d.endsWith(".gov.uk") || d.endsWith(".bank") || d.endsWith(".edu.in") || d.endsWith(".ac.in")) {
-            return false;
-        }
-
-        // Functional Subdomain Shield: Reject functional website prefixes
-        int firstDot = d.indexOf('.');
-        int lastDot = d.lastIndexOf('.');
-        if (firstDot <= 0 || firstDot == lastDot) {
-            // Apex domain (e.g. company.com or short domain) - NEVER ingest dynamically!
-            // All legitimate apex ad servers belong in the verified FilterEngine.AD_DOMAINS.
-            return false;
-        }
-
-        String firstLabel = d.substring(0, firstDot);
-        if (FUNCTIONAL_SUBDOMAIN_PREFIXES.contains(firstLabel)) {
-            return false;
-        }
-
-        // Strict Dynamic Ad Token Requirement:
-        // A dynamically pulled domain MUST have an unambiguous ad/telemetry marker to prevent collateral site breakage
-        boolean hasAdToken = d.contains(".ads.") || d.contains(".adserver.") ||
-                             d.contains(".adservice.") || d.contains(".adsystem.") || d.contains(".doubleclick.") ||
-                             d.contains(".telemetry.") || d.contains(".tracker.") ||
-                             d.contains("admob") || d.contains("appads") ||
-                             d.contains("inappads") || d.contains("bannerads") || d.contains("popunder") ||
-                             d.contains("applovin") || d.contains("unityads") || d.contains("ironsrc") ||
-                             d.contains("mintegral") || d.contains("vungle") || d.contains("chartboost") ||
-                             d.contains("tapjoy") || d.contains("bigossp") || d.contains("startapp");
-        if (!hasAdToken) {
-            return false;
-        }
-
-        return true;
-    }
+    private static final long RETRY_COOLDOWN_MS = 5 * 60 * 1000L;
+    private static final String CACHE_FILE_NAME = "aegis_dynamic_threat_cache_v311.txt";
 
     private static final ExecutorService sExecutor = Executors.newSingleThreadExecutor();
     private static final Handler sMainHandler = new Handler(Looper.getMainLooper());
     private static final AtomicBoolean sIsUpdating = new AtomicBoolean(false);
+    private static volatile long sLastSyncAttemptMs = 0L;
 
     public interface UpdateCallback {
         void onUpdateStarted();
         void onUpdateCompleted(boolean success, int newRulesCount, String message);
     }
 
+    public static boolean isGlobalProtectedRoot(String domain) {
+        return FilterEngine.isGlobalProtectedRoot(domain);
+    }
+
+    public static boolean isSafeDynamicDomain(String domain) {
+        return DynamicFeedParser.isSafeDynamicDomain(domain);
+    }
+
+    public static boolean isAutoUpdateEnabled(Context context) {
+        if (context == null) return DEFAULT_AUTO_UPDATE;
+        SharedPreferences sp = context.getApplicationContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        ensureV311DefaultMigration(sp);
+        return sp.getBoolean(KEY_AUTO_UPDATE, DEFAULT_AUTO_UPDATE);
+    }
+
+    private static void ensureV311DefaultMigration(SharedPreferences sp) {
+        if (!sp.getBoolean(KEY_V311_INITIALIZED, false)) {
+            sp.edit()
+                .putBoolean(KEY_AUTO_UPDATE, DEFAULT_AUTO_UPDATE)
+                .putBoolean(KEY_V311_INITIALIZED, true)
+                .apply();
+        }
+    }
+
     /**
-     * Initializes the dynamic filter subsystem on app / VPN service startup.
+     * Initializes the dynamic filter subsystem on app / boot / VPN startup.
      */
     public static void init(Context context) {
         if (context == null) return;
         final Context appContext = context.getApplicationContext();
 
-        SharedPreferences sp = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        boolean autoUpdateEnabled = sp.getBoolean(KEY_AUTO_UPDATE, false);
-
-        if (autoUpdateEnabled) {
-            // Fast asynchronous load of verified cached dynamic rules into FilterEngine
-            sExecutor.execute(new Runnable() {
-                @Override
-                public void run() {
-                    loadCachedRules(appContext);
-                }
-            });
-
-            // Schedule recurring 5-hour auto-update alarm
-            schedulePeriodicUpdate(appContext);
-            long lastUpdate = sp.getLong(KEY_LAST_UPDATE, 0);
-            if (System.currentTimeMillis() - lastUpdate > UPDATE_INTERVAL_MS) {
-                updateFiltersAsync(appContext, null);
-            }
-        } else {
-            // When auto-update is off, ensure only minimal verified bootstrap signatures are active
+        if (!isAutoUpdateEnabled(appContext)) {
             initDefaultBootstrapRules();
+            return;
+        }
+
+        // Immediate bootstrap signatures while cached live feeds load asynchronously
+        if (FilterEngine.getDynamicRulesCount() == 0) {
+            initDefaultBootstrapRules();
+        }
+
+        sExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                loadCachedRules(appContext);
+                syncIfStale(appContext);
+            }
+        });
+
+        schedulePeriodicUpdate(appContext);
+    }
+
+    /**
+     * Triggers an asynchronous update if cached threat feeds are missing or older than 5 hours,
+     * throttled by a 5-minute retry cooldown to handle offline/flaky transitions gracefully.
+     */
+    public static void syncIfStale(Context context) {
+        if (context == null) return;
+        final Context appContext = context.getApplicationContext();
+        if (!isAutoUpdateEnabled(appContext) || sIsUpdating.get()) {
+            return;
+        }
+
+        SharedPreferences sp = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        long lastUpdate = sp.getLong(KEY_LAST_UPDATE, 0L);
+        long now = System.currentTimeMillis();
+        File cacheFile = new File(appContext.getFilesDir(), CACHE_FILE_NAME);
+        boolean cacheMissing = !cacheFile.exists() || cacheFile.length() == 0;
+        boolean expired = (lastUpdate <= 0L) || (now - lastUpdate >= UPDATE_INTERVAL_MS);
+
+        if ((cacheMissing || expired) && (now - sLastSyncAttemptMs >= RETRY_COOLDOWN_MS)) {
+            sLastSyncAttemptMs = now;
+            updateFiltersAsync(appContext, null);
         }
     }
 
@@ -221,10 +182,10 @@ public class DynamicFilterManager {
     }
 
     /**
-     * Clears all dynamic rules when auto-update is switched off,
-     * resetting to safe minimal bootstrap rules and flushing DNS cache.
+     * Clears dynamic live feeds when auto-update is switched off, resetting to safe bootstrap rules.
      */
     public static void clearDynamicRules(Context context) {
+        FilterEngine.clearDynamicRuleSnapshots();
         FilterEngine.DYNAMIC_DOMAINS.clear();
         initDefaultBootstrapRules();
         if (context != null) {
@@ -236,7 +197,7 @@ public class DynamicFilterManager {
                 SharedPreferences sp = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
                 sp.edit()
                     .remove(KEY_LAST_UPDATE)
-                    .putInt(KEY_DYNAMIC_COUNT, FilterEngine.DYNAMIC_DOMAINS.size())
+                    .putInt(KEY_DYNAMIC_COUNT, FilterEngine.getDynamicRulesCount())
                     .apply();
             } catch (Throwable t) {
                 Log.w(TAG, "Error clearing dynamic rules file: " + t.getMessage());
@@ -247,25 +208,25 @@ public class DynamicFilterManager {
     }
 
     /**
-     * Executes asynchronous update from global threat intelligence feeds.
+     * Executes asynchronous multi-feed threat sync (Ads, Trackers, Fingerprinting & Exceptions).
      */
     public static void updateFiltersAsync(final Context context, final UpdateCallback callback) {
         if (context == null) return;
         final Context appContext = context.getApplicationContext();
 
-        if (sIsUpdating.get()) {
+        if (!sIsUpdating.compareAndSet(false, true)) {
             if (callback != null) {
                 sMainHandler.post(new Runnable() {
                     @Override
                     public void run() {
-                        callback.onUpdateCompleted(false, FilterEngine.DYNAMIC_DOMAINS.size(), "Update already in progress");
+                        callback.onUpdateCompleted(false, FilterEngine.getDynamicRulesCount(), "Update already in progress");
                     }
                 });
             }
             return;
         }
 
-        sIsUpdating.set(true);
+        sLastSyncAttemptMs = System.currentTimeMillis();
         if (callback != null) {
             sMainHandler.post(new Runnable() {
                 @Override
@@ -279,50 +240,48 @@ public class DynamicFilterManager {
             @Override
             public void run() {
                 boolean success = false;
-                Set<String> downloadedDomains = new HashSet<>(4096);
-                String resultMessage = "";
+                String resultMessage;
 
-                // Attempt fetching across redundant mirrors
-                for (String feedUrl : THREAT_FEED_URLS) {
-                    try {
-                        Log.i(TAG, "Fetching global threat updates from: " + feedUrl);
-                        downloadedDomains = downloadAndParseFeed(feedUrl);
-                        if (!downloadedDomains.isEmpty()) {
-                            success = true;
-                            resultMessage = "Synchronized " + downloadedDomains.size() + " fresh signatures from " + feedUrl;
-                            break;
-                        }
-                    } catch (Throwable t) {
-                        Log.w(TAG, "Failed downloading feed from " + feedUrl + ": " + t.getMessage());
+                try {
+                    DynamicFeedParser.ParsedThreatBundle bundle = DynamicFeedParser.fetchAllLiveFeeds();
+                    if (bundle.feedsSucceeded > 0 && bundle.totalBlockCount() > 0) {
+                        // Lock-free atomic snapshot swap in FilterEngine
+                        FilterEngine.DYNAMIC_DOMAINS.clear();
+                        FilterEngine.updateDynamicRuleSnapshots(
+                            bundle.ads, bundle.trackers, bundle.fingerprints, bundle.exceptions
+                        );
+
+                        saveToLocalStorage(appContext, bundle);
+                        DnsForwarder.clearCacheGlobal();
+
+                        SharedPreferences sp = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                        sp.edit()
+                            .putLong(KEY_LAST_UPDATE, System.currentTimeMillis())
+                            .putInt(KEY_DYNAMIC_COUNT, FilterEngine.getDynamicRulesCount())
+                            .apply();
+
+                        success = true;
+                        resultMessage = String.format(
+                            Locale.US,
+                            "Synced %,d ads, %,d trackers, %,d fingerprinting (%d unbreak rules)",
+                            bundle.ads.size(), bundle.trackers.size(),
+                            bundle.fingerprints.size(), bundle.exceptions.size()
+                        );
+                        Log.i(TAG, "Hot-reload complete: " + resultMessage);
+                    } else {
+                        int cachedCount = loadCachedRules(appContext);
+                        resultMessage = "Offline. Active threat signatures: " + cachedCount;
                     }
-                }
-
-                if (success && !downloadedDomains.isEmpty()) {
-                    // Hot-swap memory set atomically
-                    FilterEngine.DYNAMIC_DOMAINS.clear();
-                    FilterEngine.DYNAMIC_DOMAINS.addAll(downloadedDomains);
-
-                    // Persist to local storage
-                    saveToLocalStorage(appContext, downloadedDomains);
-
-                    // Update telemetry preferences
-                    SharedPreferences sp = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-                    sp.edit()
-                        .putLong(KEY_LAST_UPDATE, System.currentTimeMillis())
-                        .putInt(KEY_DYNAMIC_COUNT, downloadedDomains.size())
-                        .apply();
-
-                    Log.i(TAG, "Hot-reload complete. Active dynamic threat rules: " + downloadedDomains.size());
-                } else {
-                    // Fallback to local cache if offline
+                } catch (Throwable t) {
+                    Log.w(TAG, "Multi-feed update failed: " + t.getMessage());
                     int cachedCount = loadCachedRules(appContext);
-                    resultMessage = "Offline. Active cached threat rules: " + cachedCount;
+                    resultMessage = "Sync retry queued. Cached threat rules: " + cachedCount;
+                } finally {
+                    sIsUpdating.set(false);
                 }
-
-                sIsUpdating.set(false);
 
                 final boolean finalSuccess = success;
-                final int finalCount = FilterEngine.DYNAMIC_DOMAINS.size();
+                final int finalCount = FilterEngine.getDynamicRulesCount();
                 final String finalMsg = resultMessage;
 
                 if (callback != null) {
@@ -338,184 +297,140 @@ public class DynamicFilterManager {
     }
 
     /**
-     * Downloads and parses raw host/adblock rules into clean domain set.
+     * Atomically persists categorized dynamic signatures and exceptions to disk via temp file + sync.
      */
-    private static Set<String> downloadAndParseFeed(String urlString) throws Exception {
-        Set<String> domains = new HashSet<>(4096);
-        HttpURLConnection conn = null;
-        InputStream in = null;
-
+    private static void saveToLocalStorage(Context context, DynamicFeedParser.ParsedThreatBundle bundle) {
+        File finalFile = new File(context.getFilesDir(), CACHE_FILE_NAME);
+        File tmpFile = new File(context.getFilesDir(), CACHE_FILE_NAME + ".tmp");
         try {
-            URL url = new URL(urlString);
-            conn = (HttpURLConnection) url.openConnection();
-            conn.setConnectTimeout(6000);
-            conn.setReadTimeout(10000);
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("User-Agent", "AegisGuard-ThreatEngine/2.8");
-            conn.setRequestProperty("Accept-Encoding", "gzip");
-            conn.connect();
+            FileOutputStream fos = new FileOutputStream(tmpFile);
+            StringBuilder sb = new StringBuilder(16384);
 
-            int code = conn.getResponseCode();
-            if (code != HttpURLConnection.HTTP_OK) {
-                throw new Exception("HTTP " + code);
-            }
+            appendTaggedDomains(fos, sb, "E|", bundle.exceptions);
+            appendTaggedDomains(fos, sb, "F|", bundle.fingerprints);
+            appendTaggedDomains(fos, sb, "T|", bundle.trackers);
+            appendTaggedDomains(fos, sb, "A|", bundle.ads);
 
-            String encoding = conn.getHeaderField("Content-Encoding");
-            in = conn.getInputStream();
-            if ("gzip".equalsIgnoreCase(encoding)) {
-                in = new GZIPInputStream(in);
-            }
-
-            BufferedReader reader = new BufferedReader(new InputStreamReader(in), 8192);
-            String line;
-            int count = 0;
-
-            while ((line = reader.readLine()) != null && count < MAX_DYNAMIC_RULES) {
-                line = line.trim();
-                if (line.isEmpty() || line.startsWith("#") || line.startsWith("!") ||
-                    line.startsWith("[") || line.startsWith("@") || line.contains("##") ||
-                    line.contains("#@#") || line.contains("$third-party") || line.contains("$sitekey")) {
-                    continue;
-                }
-
-                String domain = extractDomain(line);
-                if (domain != null && isValidDomain(domain)) {
-                    // Whitelist safety guard: NEVER allow dynamic rules to sinkhole essential services or global protected websites
-                    if (isSafeDynamicDomain(domain)) {
-                        domains.add(domain);
-                        count++;
-                    }
-                }
-            }
-        } finally {
-            if (in != null) {
-                try { in.close(); } catch (Exception ignored) {}
-            }
-            if (conn != null) {
-                conn.disconnect();
-            }
-        }
-
-        return domains;
-    }
-
-    /**
-     * Parses standard formats:
-     * - 0.0.0.0 domain.com
-     * - 127.0.0.1 domain.com
-     * - ||domain.com^
-     * - domain.com
-     */
-    private static String extractDomain(String line) {
-        if (line.startsWith("0.0.0.0") || line.startsWith("127.0.0.1")) {
-            String[] parts = line.split("\\s+");
-            if (parts.length >= 2) {
-                return parts[1].toLowerCase(Locale.US);
-            }
-        } else if (line.startsWith("||") && line.contains("^")) {
-            int start = 2;
-            int end = line.indexOf('^');
-            if (end > start) {
-                return line.substring(start, end).toLowerCase(Locale.US);
-            }
-        } else if (!line.contains("/") && !line.contains(":") && !line.contains(" ") && !line.contains("$") && !line.contains("*")) {
-            return line.toLowerCase(Locale.US);
-        }
-        return null;
-    }
-
-    private static boolean isValidDomain(String d) {
-        if (d == null || d.length() < 3 || d.length() > 253) return false;
-        if (!d.contains(".")) return false;
-        if (d.startsWith(".") || d.endsWith(".")) return false;
-        if (d.equals("localhost") || d.equals("broadcasthost") || d.equals("local")) return false;
-        for (int i = 0; i < d.length(); i++) {
-            char c = d.charAt(i);
-            if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '-')) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Persists dynamic threat signatures to local storage.
-     */
-    private static void saveToLocalStorage(Context context, Set<String> domains) {
-        try {
-            File file = new File(context.getFilesDir(), CACHE_FILE_NAME);
-            FileOutputStream fos = new FileOutputStream(file);
-            StringBuilder sb = new StringBuilder(1024);
-            for (String d : domains) {
-                sb.append(d).append('\n');
-                if (sb.length() > 8192) {
-                    fos.write(sb.toString().getBytes("UTF-8"));
-                    sb.setLength(0);
-                }
-            }
             if (sb.length() > 0) {
-                fos.write(sb.toString().getBytes("UTF-8"));
+                fos.write(sb.toString().getBytes(StandardCharsets.UTF_8));
+                sb.setLength(0);
             }
             fos.flush();
+            try { fos.getFD().sync(); } catch (Throwable ignored) {}
             fos.close();
-            Log.i(TAG, "Cached " + domains.size() + " dynamic threat rules to " + file.getAbsolutePath());
+
+            if (finalFile.exists()) {
+                finalFile.delete();
+            }
+            if (!tmpFile.renameTo(finalFile)) {
+                Log.w(TAG, "Could not rename temp threat cache file.");
+            } else {
+                Log.i(TAG, "Atomically cached " + bundle.totalBlockCount() + " dynamic rules to " + finalFile.getName());
+            }
         } catch (Throwable t) {
             Log.w(TAG, "Failed saving local threat cache: " + t.getMessage());
+            if (tmpFile.exists()) {
+                try { tmpFile.delete(); } catch (Throwable ignored) {}
+            }
+        }
+    }
+
+    private static void appendTaggedDomains(FileOutputStream fos, StringBuilder sb, String prefix, Set<String> domains) throws Exception {
+        for (String d : domains) {
+            sb.append(prefix).append(d).append('\n');
+            if (sb.length() >= 16384) {
+                fos.write(sb.toString().getBytes(StandardCharsets.UTF_8));
+                sb.setLength(0);
+            }
         }
     }
 
     /**
-     * Reads locally cached rules into FilterEngine.DYNAMIC_DOMAINS.
-     * Sanitizes rules against essential services and protected roots,
-     * immediately cleansing any false positives saved on disk.
+     * Loads and re-sanitizes categorized dynamic threat signatures from local cache.
      */
     private static int loadCachedRules(Context context) {
         try {
-            // Guarantee removal of legacy unvetted cache from previous versions
-            try {
-                File legacy1 = new File(context.getFilesDir(), "aegis_dynamic_threat_cache.txt");
-                if (legacy1.exists()) legacy1.delete();
-                File legacy2 = new File(context.getFilesDir(), "aegis_dynamic_threat_cache_v303.txt");
-                if (legacy2.exists()) legacy2.delete();
-                File legacy3 = new File(context.getFilesDir(), "aegis_dynamic_threat_cache_v306.txt");
-                if (legacy3.exists()) legacy3.delete();
-            } catch (Throwable ignored) {}
+            deleteLegacyCaches(context);
 
             File file = new File(context.getFilesDir(), CACHE_FILE_NAME);
             if (!file.exists()) {
-                // Initialize default dynamic threat bootstrap set
-                initDefaultBootstrapRules();
-                return FilterEngine.DYNAMIC_DOMAINS.size();
+                if (FilterEngine.getDynamicRulesCount() == 0) {
+                    initDefaultBootstrapRules();
+                }
+                return FilterEngine.getDynamicRulesCount();
             }
 
+            DynamicFeedParser.ParsedThreatBundle bundle = new DynamicFeedParser.ParsedThreatBundle();
             FileInputStream fis = new FileInputStream(file);
-            BufferedReader reader = new BufferedReader(new InputStreamReader(fis, "UTF-8"));
+            BufferedReader reader = new BufferedReader(new InputStreamReader(fis, StandardCharsets.UTF_8), 16384);
             String line;
-            Set<String> cached = new HashSet<>(4096);
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
-                if (!line.isEmpty() && isSafeDynamicDomain(line)) {
-                    cached.add(line);
+                if (line.isEmpty()) continue;
+
+                if (line.startsWith("E|")) {
+                    String dom = line.substring(2);
+                    if (DynamicFeedParser.isValidDomain(dom)) {
+                        bundle.exceptions.add(dom);
+                    }
+                } else if (line.startsWith("F|")) {
+                    String dom = line.substring(2);
+                    if (DynamicFeedParser.isSafeDynamicDomain(dom)) {
+                        bundle.fingerprints.add(dom);
+                    }
+                } else if (line.startsWith("T|")) {
+                    String dom = line.substring(2);
+                    if (DynamicFeedParser.isSafeDynamicDomain(dom)) {
+                        bundle.trackers.add(dom);
+                    }
+                } else if (line.startsWith("A|")) {
+                    String dom = line.substring(2);
+                    if (DynamicFeedParser.isSafeDynamicDomain(dom)) {
+                        bundle.ads.add(dom);
+                    }
+                } else if (DynamicFeedParser.isSafeDynamicDomain(line)) {
+                    bundle.ads.add(line);
                 }
             }
             reader.close();
             fis.close();
 
-            FilterEngine.DYNAMIC_DOMAINS.clear();
-            FilterEngine.DYNAMIC_DOMAINS.addAll(cached);
-            saveToLocalStorage(context, cached);
-            Log.i(TAG, "Loaded and sanitized " + cached.size() + " dynamic threat rules from local cache");
-            return cached.size();
+            bundle.finalizeCategories();
+            if (bundle.totalBlockCount() > 0) {
+                FilterEngine.DYNAMIC_DOMAINS.clear();
+                FilterEngine.updateDynamicRuleSnapshots(
+                    bundle.ads, bundle.trackers, bundle.fingerprints, bundle.exceptions
+                );
+                Log.i(TAG, "Loaded and sanitized " + bundle.totalBlockCount() + " cached dynamic rules");
+                return FilterEngine.getDynamicRulesCount();
+            }
+
+            initDefaultBootstrapRules();
+            return FilterEngine.getDynamicRulesCount();
         } catch (Throwable t) {
             Log.w(TAG, "Could not load local cache: " + t.getMessage());
             initDefaultBootstrapRules();
-            return FilterEngine.DYNAMIC_DOMAINS.size();
+            return FilterEngine.getDynamicRulesCount();
+        }
+    }
+
+    private static void deleteLegacyCaches(Context context) {
+        String[] oldFiles = new String[] {
+            "aegis_dynamic_threat_cache.txt",
+            "aegis_dynamic_threat_cache_v303.txt",
+            "aegis_dynamic_threat_cache_v306.txt",
+            "aegis_dynamic_threat_cache_v313.txt"
+        };
+        for (String name : oldFiles) {
+            try {
+                File old = new File(context.getFilesDir(), name);
+                if (old.exists()) old.delete();
+            } catch (Throwable ignored) {}
         }
     }
 
     /**
-     * Pre-populates zero-day mobile telemetry and ad injection signatures
-     * so protection is active even prior to first network download.
+     * Pre-populates verified zero-day mobile ad & telemetry signatures immediately on cold start.
      */
     private static void initDefaultBootstrapRules() {
         String[] bootstrap = new String[] {
@@ -542,7 +457,7 @@ public class DynamicFilterManager {
         SharedPreferences sp = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         long lastUpdate = sp.getLong(KEY_LAST_UPDATE, 0);
         if (lastUpdate == 0) {
-            return "Active (Auto-syncs every 5h)";
+            return isAutoUpdateEnabled(context) ? "Syncing automatically every 5h" : "Paused (Tap CHECK NOW)";
         }
 
         long diff = System.currentTimeMillis() - lastUpdate;

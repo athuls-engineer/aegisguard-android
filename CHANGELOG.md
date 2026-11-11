@@ -2,6 +2,25 @@
 
 All notable changes to the **AegisGuard** Android project are documented in this file.
 
+## [3.1.11] - 2026-11-11
+### Highlights: Zero-Breakage Multi-Feed Auto-Updates (Ads, Trackers & Fingerprinting) Enabled by Default
+- **Auto-Sync Threat Feeds Enabled Out of the Box**:
+  - Switched `DynamicFilterManager.KEY_AUTO_UPDATE` (`auto_update_threat_filters`) to default `true` across `DynamicFilterManager`, `BootReceiver`, `FilterUpdateReceiver`, and `SettingsActivity` (with one-time `auto_update_v311_initialized` migration for existing installs so upgrades enable auto-sync automatically unless manually turned off later).
+  - Added `DynamicFilterManager.syncIfStale()` in `AegisVpnService.networkCallback.onAvailable` (with a 5-minute retry cooldown) and `SettingsActivity` toggle activation so stale or initial feed downloads recover automatically once connectivity resumes, in addition to the 5-hour periodic alarm.
+- **Categorized Multi-Feed Ingestion (`DynamicFeedParser`)**:
+  - Replaced legacy single-feed ingestion (which capped at 35,000 rules and dropped most tracker/fingerprinting signatures) with multi-feed categorized ingestion merging:
+    - `AdGuardSDNSFilter` (`filter.txt`, parsed section-by-section via `! Source name:` plus `@@||...^` unbreak exceptions, with `HaGeZi Multi LIGHT` failover mirror on GitLab).
+    - `AdAway` Android hosts (`raw.githubusercontent.com` primary + `adaway.org` fallback).
+    - `AdGuard CNAME Disguised Ads` (`combined_disguised_ads_justdomains.txt`).
+  - Categorizes dynamic signatures cleanly into disjoint buckets (`ads`, `trackers`, `fingerprints`) plus `exceptions`, raising capacity to `250,000` rules and flushing stale DNS cache answers via `DnsForwarder.clearCacheGlobal()` immediately after hot-reload.
+- **Lock-Free Snapshot Swaps & Multi-Layer Zero-Breakage Shield**:
+  - Updated `FilterEngine` with `volatile` lock-free dynamic snapshot sets (`liveDynamicAds`, `liveDynamicTrackers`, `liveDynamicFingerprints`, `liveDynamicExceptions`) evaluated under strict `isProtectedWebsite()`, `isEssentialService()`, `isDynamicException()`, `GLOBAL_PROTECTED_ROOTS`, and `SHARED_HOSTING_SUFFIXES` guards while honoring user category toggles.
+  - Hardened `DynamicFeedParser.isSafeDynamicDomain()` to reject URL-path rules, functional subdomains (`www`, `api`, `cdn`, `auth`, `login`, `pay`, `checkout`, `track`, etc.), sensitive public/educational/government/banking TLDs, and protected platforms, while `DynamicFilterManager` persists tagged rules (`A|`, `T|`, `F|`, `E|`) atomically via temp-file sync and re-sanitizes on disk load.
+- **Verification**:
+  - `TestDynamicAutoUpdateSafety`: Synced **183,275 live rules** (`75,549` ads, `107,625` trackers, `101` fingerprinting, `183` `@@||` exceptions) and failover (`153,195` rules); audited **156 real websites** (Google, YouTube/Morphe, banking/UPI, govt/edu, couriers, e-commerce, news, streaming, CDNs) with **0 websites broken** and rejected all adversarial poisoning probes.
+  - `AegisGuardStressTest`: **100,000 / 100,000 scenarios passed (100.00%)** in 1.09s.
+  - **TurtleCute**: **126 / 126 (100.0%)**, **D3Ward Toolz**: **131 / 131 (100.0%)**, **CanYouBlockIt**: **26 / 26 (100.0%)**, **AdBlock-Tester External Domains**: **13 / 13 (100.0%)**, **SuperAdblock**: **475 / 482 (98.5%)** — verified both standalone and with live feeds active.
+
 ## [3.1.10] - 2026-11-11
 ### Highlights: YouTube / Morphe / ReVanced Watch History Fix (`s.youtube.com`), SponsorBlock Immunity & Zero-Breakage Video Player Protection
 - **YouTube Watch History & Progress Fix (`s.youtube.com`)**:

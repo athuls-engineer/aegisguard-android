@@ -185,7 +185,7 @@ public class SettingsActivity extends Activity {
 
     private void updateThreatIntelligenceDisplay() {
         if (tvThreatRulesCount != null) {
-            int dynamicCount = FilterEngine.DYNAMIC_DOMAINS.size();
+            int dynamicCount = FilterEngine.getDynamicRulesCount();
             int totalRules = FilterEngine.getTotalRulesCount();
             tvThreatRulesCount.setText(String.format(Locale.US, "Threat Signatures: %,d Active (+%,d live)", totalRules, dynamicCount));
         }
@@ -254,7 +254,7 @@ public class SettingsActivity extends Activity {
         swAutoStartOnBoot.setChecked(prefs.getBoolean(KEY_AUTO_START, true));
 
         if (swAutoUpdateFilters != null) {
-            swAutoUpdateFilters.setChecked(prefs.getBoolean(DynamicFilterManager.KEY_AUTO_UPDATE, false));
+            swAutoUpdateFilters.setChecked(DynamicFilterManager.isAutoUpdateEnabled(this));
         }
         updateThreatIntelligenceDisplay();
         updateCustomRulesDisplay();
@@ -441,6 +441,7 @@ public class SettingsActivity extends Activity {
                     prefs.edit().putBoolean(DynamicFilterManager.KEY_AUTO_UPDATE, isChecked).apply();
                     if (isChecked) {
                         DynamicFilterManager.schedulePeriodicUpdate(SettingsActivity.this);
+                        DynamicFilterManager.syncIfStale(SettingsActivity.this);
                         Toast.makeText(SettingsActivity.this, "5-Hour Threat Auto-Sync Activated", Toast.LENGTH_SHORT).show();
                     } else {
                         DynamicFilterManager.cancelPeriodicUpdate(SettingsActivity.this);

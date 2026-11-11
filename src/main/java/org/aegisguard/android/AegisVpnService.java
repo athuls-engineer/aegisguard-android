@@ -225,6 +225,8 @@ public class AegisVpnService extends VpnService implements Runnable {
                                 setUnderlyingNetworks(new Network[]{ network });
                             } catch (Exception ignored) {}
                         }
+                        // Catch up automatically on any missed 5-hour threat feed updates once internet is live
+                        DynamicFilterManager.syncIfStale(getApplicationContext());
                     }
 
                     @Override

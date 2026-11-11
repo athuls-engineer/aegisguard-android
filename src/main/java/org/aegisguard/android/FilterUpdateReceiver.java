@@ -3,7 +3,6 @@ package org.aegisguard.android;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.util.Log;
 
 /**
@@ -20,10 +19,7 @@ public class FilterUpdateReceiver extends BroadcastReceiver {
         if (context == null) return;
         Log.i(TAG, "5-Hour Periodic Alarm Triggered: Checking for global threat intelligence updates...");
 
-        SharedPreferences sp = context.getSharedPreferences(DynamicFilterManager.PREFS_NAME, Context.MODE_PRIVATE);
-        boolean autoUpdateEnabled = sp.getBoolean(DynamicFilterManager.KEY_AUTO_UPDATE, false);
-
-        if (autoUpdateEnabled) {
+        if (DynamicFilterManager.isAutoUpdateEnabled(context)) {
             DynamicFilterManager.updateFiltersAsync(context.getApplicationContext(), null);
             // Guarantee reschedule for next 5 hours
             DynamicFilterManager.schedulePeriodicUpdate(context.getApplicationContext());
