@@ -519,17 +519,63 @@ public class DnsPacketParser {
     }
 
     /**
-     * Checks if a raw DNS response contains at least one valid, non-sinkhole, non-loopback IP record.
-     * Prevents accepting ISP DNS hijack answers (such as 0.0.0.0, 127.0.0.1, or ISP block-page redirection)
-     * when querying legitimate websites.
+     * Synthesizes an immediate NOERROR NODATA DNS payload (ANCOUNT = 0).
+     * Used for sub-millisecond (0.00ms) IPv6 resolution on IPv4-only networks,
+     * permanently eliminating RFC 8305 Happy Eyeballs connection hangs.
+     */
+    public static byte[] createNodataDnsPayload(byte[] originalPacket, int originalLength, DnsQueryInfo query) {
+        if (query == null || originalPacket == null || query.dnsLength < 12) return null;
+        int questionLen = query.questionLength;
+        int newDnsPayloadLen = 12 + questionLen;
+        byte[] dnsPayload = new byte[newDnsPayloadLen];
+
+        // 1. DNS Header
+        dnsPayload[0] = (byte) ((query.txId >> 8) & 0xFF);
+        dnsPayload[1] = (byte) (query.txId & 0xFF);
+
+        // QR=1, AA=1, RD=1, RA=1, RCODE=0 (NOERROR NODATA)
+        dnsPayload[2] = (byte) 0x81;
+        dnsPayload[3] = (byte) 0x80;
+        dnsPayload[4] = 0x00; dnsPayload[5] = 0x01; // QDCount = 1
+        dnsPayload[6] = 0x00; dnsPayload[7] = 0x00; // ANCount = 0
+        dnsPayload[8] = 0x00; dnsPayload[9] = 0x00; // NSCount = 0
+        dnsPayload[10] = 0x00; dnsPayload[11] = 0x00; // ARCount = 0
+
+        // 2. Question section (copied verbatim from original packet)
+        System.arraycopy(originalPacket, query.dnsOffset + 12, dnsPayload, 12, questionLen);
+
+        return dnsPayload;
+    }
+
+    public static byte[] createNodataResponse(byte[] originalPacket, int originalLength, DnsQueryInfo query) {
+        byte[] dnsPayload = createNodataDnsPayload(originalPacket, originalLength, query);
+        return buildTunResponsePacket(query, dnsPayload);
+    }
+
+    /**
+     * Checks if a raw DNS response contains at least one valid, non-sinkhole record.
+     * Overloaded to handle query type (qType) awareness:
+     * - For non-A/AAAA queries (such as TYPE_HTTPS 65, CNAME 5, TXT 16, SRV 33), if ANCOUNT > 0, returns true immediately.
+     * - For TYPE_A and TYPE_AAAA, accepts valid CNAME targets or non-sinkhole IPs (rejecting 0.0.0.0 and 127.x.x.x).
      */
     public static boolean hasValidIpAnswer(byte[] dnsPayload) {
+        return hasValidIpAnswer(dnsPayload, -1);
+    }
+
+    public static boolean hasValidIpAnswer(byte[] dnsPayload, int qType) {
         if (dnsPayload == null || dnsPayload.length < 12) return false;
         int anCount = ((dnsPayload[6] & 0xFF) << 8) | (dnsPayload[7] & 0xFF);
         if (anCount <= 0) return false;
 
+        // Fast path: If qType is explicitly known and not A or AAAA (e.g. TYPE_HTTPS 65, CNAME, TXT, SRV),
+        // any response with ANCOUNT > 0 is a valid response and must NEVER be stalled as an ISP sinkhole.
+        if (qType > 0 && qType != TYPE_A && qType != TYPE_AAAA) {
+            return true;
+        }
+
         int pos = 12;
         int qdCount = ((dnsPayload[4] & 0xFF) << 8) | (dnsPayload[5] & 0xFF);
+        int parsedQType = -1;
         for (int q = 0; q < qdCount && pos < dnsPayload.length; q++) {
             while (pos < dnsPayload.length) {
                 int len = dnsPayload[pos] & 0xFF;
@@ -537,7 +583,15 @@ public class DnsPacketParser {
                 if ((len & 0xC0) == 0xC0) { pos += 2; break; }
                 pos += 1 + len;
             }
-            pos += 4;
+            if (pos + 4 <= dnsPayload.length) {
+                parsedQType = ((dnsPayload[pos] & 0xFF) << 8) | (dnsPayload[pos + 1] & 0xFF);
+                pos += 4;
+            }
+        }
+
+        // If parsed query type from DNS payload question is not A or AAAA (e.g. TYPE_HTTPS 65):
+        if (parsedQType > 0 && parsedQType != TYPE_A && parsedQType != TYPE_AAAA) {
+            return true;
         }
 
         for (int a = 0; a < anCount && pos < dnsPayload.length; a++) {
@@ -554,6 +608,11 @@ public class DnsPacketParser {
             pos += 10;
             if (pos + rdLength > dnsPayload.length) break;
 
+            // Valid CNAME or HTTPS RR (RFC 9460) in answer section is always valid
+            if (type == 5 || type == 65) {
+                return true;
+            }
+
             if (type == TYPE_A && rdLength == 4) {
                 int b0 = dnsPayload[pos] & 0xFF;
                 // Reject 0.0.0.0 and 127.x.x.x (standard ISP sinkhole / loopback responses)
@@ -568,6 +627,9 @@ public class DnsPacketParser {
                     if (dnsPayload[pos + i] != 0) { allZero = false; break; }
                 }
                 if (!allZero) return true;
+            } else if (type != TYPE_A && type != TYPE_AAAA) {
+                // Any other recognized non-IP answer record (e.g. PTR, TXT, SRV, MX) is valid
+                return true;
             }
             pos += rdLength;
         }

@@ -4,6 +4,7 @@ import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.LinkProperties;
 import android.net.Network;
+import android.net.RouteInfo;
 import android.net.VpnService;
 import android.os.Build;
 import android.util.Log;
@@ -104,8 +105,9 @@ public class DnsForwarder {
         prewarmHotDomains();
     }
 
-    private static final int MAX_SOCKET_POOL = 16;
+    private static final int MAX_SOCKET_POOL = 64;
     private final ConcurrentLinkedQueue<DatagramSocket> socketPool = new ConcurrentLinkedQueue<>();
+    private volatile boolean hasPhysicalIpv6 = false;
 
     public DatagramSocket createProtectedSocket() {
         try {
@@ -129,15 +131,6 @@ public class DnsForwarder {
         DatagramSocket socket;
         while ((socket = socketPool.poll()) != null) {
             if (!socket.isClosed()) {
-                // Non-blocking flush of any stale packets in the OS buffer (< 0.1ms)
-                try {
-                    socket.setSoTimeout(1);
-                    byte[] drain = new byte[512];
-                    DatagramPacket p = new DatagramPacket(drain, drain.length);
-                    while (true) {
-                        socket.receive(p);
-                    }
-                } catch (Exception ignored) {}
                 return socket;
             }
         }
@@ -243,9 +236,30 @@ public class DnsForwarder {
                 ConnectivityManager cm = (ConnectivityManager) vpnService.getSystemService(Context.CONNECTIVITY_SERVICE);
                 if (cm != null) {
                     Network targetNetwork = this.underlyingNetwork;
+                    LinkProperties lp = null;
                     if (targetNetwork != null) {
-                        LinkProperties lp = cm.getLinkProperties(targetNetwork);
-                        if (lp != null && lp.getDnsServers() != null) {
+                        lp = cm.getLinkProperties(targetNetwork);
+                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        Network active = cm.getActiveNetwork();
+                        if (active != null) {
+                            lp = cm.getLinkProperties(active);
+                        }
+                    }
+
+                    if (lp != null) {
+                        boolean ipv6Route = false;
+                        for (RouteInfo route : lp.getRoutes()) {
+                            if (route.isDefaultRoute() && route.getDestination() != null) {
+                                if (route.getDestination().getAddress() instanceof Inet6Address) {
+                                    ipv6Route = true;
+                                    break;
+                                }
+                            }
+                        }
+                        this.hasPhysicalIpv6 = ipv6Route;
+                        Log.i(TAG, "Physical network IPv6 default route: " + ipv6Route);
+
+                        if (lp.getDnsServers() != null) {
                             for (InetAddress addr : lp.getDnsServers()) {
                                 if (!addr.isLoopbackAddress() && !addr.isAnyLocalAddress() && !addr.isLinkLocalAddress()) {
                                     String host = addr.getHostAddress();
@@ -258,6 +272,8 @@ public class DnsForwarder {
                                 }
                             }
                         }
+                    } else {
+                        this.hasPhysicalIpv6 = false;
                     }
                 }
             }
@@ -272,15 +288,52 @@ public class DnsForwarder {
         }
     }
 
+    public void updatePhysicalIpv6Status(Network network) {
+        try {
+            ConnectivityManager cm = (ConnectivityManager) vpnService.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm != null && network != null) {
+                LinkProperties lp = cm.getLinkProperties(network);
+                if (lp != null) {
+                    boolean ipv6Route = false;
+                    for (RouteInfo route : lp.getRoutes()) {
+                        if (route.isDefaultRoute() && route.getDestination() != null) {
+                            if (route.getDestination().getAddress() instanceof Inet6Address) {
+                                ipv6Route = true;
+                                break;
+                            }
+                        }
+                    }
+                    this.hasPhysicalIpv6 = ipv6Route;
+                    Log.i(TAG, "Updated physical IPv6 status: " + ipv6Route);
+                    return;
+                }
+            }
+        } catch (Throwable ignored) {}
+        this.hasPhysicalIpv6 = false;
+    }
+
     public static boolean isStreamingOrCdnDomain(String domain) {
         if (domain == null) return false;
         String d = domain.toLowerCase(Locale.US);
-        return d.endsWith("googlevideo.com") || d.endsWith("nflxvideo.net") ||
-               d.endsWith("nflximg.net") || d.endsWith("hotstarcdn.com") ||
-               d.endsWith("hotstar-cdn.net") || d.endsWith("starott.com") ||
-               d.endsWith("jiocinema.com") || d.endsWith("aiv-cdn.net") ||
+        return d.endsWith("googlevideo.com") || d.endsWith("youtube.com") ||
+               d.endsWith("youtu.be") || d.endsWith("ytimg.com") ||
+               d.endsWith("ggpht.com") || d.endsWith("google.com") ||
+               d.endsWith("googleapis.com") || d.endsWith("gstatic.com") ||
+               d.endsWith("googleusercontent.com") ||
+               d.endsWith("nflxvideo.net") || d.endsWith("nflximg.net") ||
+               d.endsWith("netflix.com") || d.endsWith("hotstar.com") ||
+               d.endsWith("hotstarcdn.com") || d.endsWith("hotstar-cdn.net") ||
+               d.endsWith("starott.com") || d.endsWith("jiocinema.com") ||
+               d.endsWith("primevideo.com") || d.endsWith("amazon.in") ||
+               d.endsWith("amazon.com") || d.endsWith("aiv-cdn.net") ||
                d.endsWith("aiv-delivery.net") || d.endsWith("pv-cdn.net") ||
-               d.endsWith("media-amazon.com") || d.endsWith("akamaized.net") ||
+               d.endsWith("media-amazon.com") || d.endsWith("flipkart.com") ||
+               d.endsWith("spotify.com") || d.endsWith("scdn.co") ||
+               d.endsWith("apple.com") || d.endsWith("icloud.com") ||
+               d.endsWith("reddit.com") || d.endsWith("redd.it") ||
+               d.endsWith("redditmedia.com") || d.endsWith("instagram.com") ||
+               d.endsWith("whatsapp.net") || d.endsWith("discord.com") ||
+               d.endsWith("discord.gg") || d.endsWith("akamaized.net") ||
                d.endsWith("akamaihd.net") || d.endsWith("akamai.net") ||
                d.endsWith("fastly.net") || d.endsWith("cloudfront.net") ||
                d.endsWith("fbcdn.net") || d.endsWith("cdninstagram.com") ||
@@ -295,6 +348,12 @@ public class DnsForwarder {
      */
     public byte[] resolve(byte[] packet, int length, DnsPacketParser.DnsQueryInfo query) {
         if (query.dnsLength < 12) return null;
+
+        // Fast path for IPv6 queries on IPv4-only networks (0.00ms execution):
+        // Eliminates RFC 8305 Happy Eyeballs connection timeouts and hanging.
+        if (query.qType == DnsPacketParser.TYPE_AAAA && !hasPhysicalIpv6) {
+            return DnsPacketParser.createNodataDnsPayload(packet, length, query);
+        }
 
         final String cacheKey = query.qName.toLowerCase(Locale.US) + "#" + query.qType;
 
@@ -416,12 +475,20 @@ public class DnsForwarder {
             boolean isStreaming = isStreamingOrCdnDomain(qName);
 
             if (isStreaming) {
-                // For video streaming & CDNs, prioritize Physical ISP Gateway DNS and Google DNS (8.8.8.8)
-                // Both preserve EDNS Client Subnet (ECS) or are on-net, guaranteeing the CDN returns
-                // the closest local ISP edge cache rather than misrouting across continents.
+                // For video streaming & CDNs, prioritize Google DNS (8.8.8.8, 8.8.4.4) and Physical ISP Gateway DNS.
+                // Both preserve EDNS Client Subnet (ECS) or are directly on-net, guaranteeing the CDN returns
+                // the closest local ISP edge cache rather than misrouting across continents or distant peering points.
                 for (InetAddress s : upstreamServers) {
                     String ip = s.getHostAddress();
-                    if (ip != null && !ip.equals("1.1.1.1") && !ip.equals("1.0.0.1") && !ip.startsWith("2606:4700:")) {
+                    if (ip != null && (ip.startsWith("8.8.") || ip.startsWith("2001:4860:"))) {
+                        targets.add(s);
+                    }
+                }
+                for (InetAddress s : upstreamServers) {
+                    String ip = s.getHostAddress();
+                    if (ip != null && !ip.equals("1.1.1.1") && !ip.equals("1.0.0.1") &&
+                        !ip.startsWith("8.8.") && !ip.equals("9.9.9.9") && !ip.equals("149.112.112.112") &&
+                        !ip.startsWith("2606:4700:") && !ip.startsWith("2001:4860:") && !targets.contains(s)) {
                         targets.add(s);
                     }
                 }
@@ -431,11 +498,22 @@ public class DnsForwarder {
                     }
                 }
             } else {
-                targets.addAll(upstreamServers);
+                // For general web browsing, race Google DNS (with ECS) and Cloudflare concurrently in Wave 1
+                for (InetAddress s : upstreamServers) {
+                    String ip = s.getHostAddress();
+                    if (ip != null && (ip.equals("8.8.8.8") || ip.equals("1.1.1.1"))) {
+                        targets.add(s);
+                    }
+                }
+                for (InetAddress s : upstreamServers) {
+                    if (!targets.contains(s)) {
+                        targets.add(s);
+                    }
+                }
             }
 
-            // Wave 1: Race top 3 resolvers in parallel (eliminates UDP burst router drops)
-            int sendCount = Math.min(targets.size(), 3);
+            // Wave 1: Race top 4 resolvers in parallel (eliminates UDP burst router drops)
+            int sendCount = Math.min(targets.size(), 4);
             for (int i = 0; i < sendCount; i++) {
                 InetAddress server = targets.get(i);
                 if (server != null) {
@@ -462,9 +540,8 @@ public class DnsForwarder {
                 int remaining = (int) (deadline - now);
                 if (remaining <= 0) break;
 
-                // For Type A queries, wait at least 350ms to allow Anycast resolvers (Cloudflare/Google)
-                // to race before accepting an empty NODATA or ISP sinkhole response.
-                if (backupEmptyResponse != null && (now - startTime) >= 350) {
+                // Wait up to 150ms before accepting an empty NODATA or ISP sinkhole response
+                if (backupEmptyResponse != null && (now - startTime) >= 150) {
                     return backupEmptyResponse;
                 }
 
@@ -500,7 +577,7 @@ public class DnsForwarder {
 
                 int nextTimeout = remaining;
                 if (backupEmptyResponse != null) {
-                    nextTimeout = Math.min(nextTimeout, Math.max(5, (int) (350 - (now - startTime))));
+                    nextTimeout = Math.min(nextTimeout, Math.max(5, (int) (150 - (now - startTime))));
                 } else if (!firstRetryDone) {
                     nextTimeout = Math.min(remaining, Math.max(10, (int) (RETRY_INTERVAL_MS - (now - startTime))));
                 } else if (!secondRetryDone) {
@@ -519,8 +596,8 @@ public class DnsForwarder {
 
                             if (rcode == 0) {
                                 if (ancount > 0) {
-                                    if (DnsPacketParser.hasValidIpAnswer(recvBuffer)) {
-                                        // True winning answer with valid IP! Return immediately!
+                                    if (DnsPacketParser.hasValidIpAnswer(recvBuffer, qType)) {
+                                        // True winning answer with valid IP or record! Return immediately!
                                         return Arrays.copyOf(recvBuffer, respLen);
                                     } else {
                                         // Answer contains 0.0.0.0 or 127.0.0.1 (ISP sinkhole / bogus record)
@@ -674,12 +751,12 @@ public class DnsForwarder {
                 DatagramSocket prewarmSocket = borrowProtectedSocket();
                 if (prewarmSocket == null) return;
                 try {
-                    prewarmSocket.setSoTimeout(300);
+                    prewarmSocket.setSoTimeout(100);
                     byte[] recvBuf = new byte[4096];
                     DatagramPacket recvPack = new DatagramPacket(recvBuf, recvBuf.length);
 
                     int txId = 0x7000;
-                    int[] qtypes = new int[] { 1, 28 };
+                    int[] qtypes = hasPhysicalIpv6 ? new int[] { 1, 28 } : new int[] { 1 };
                     for (String domain : hotDomains) {
                         for (int qtype : qtypes) {
                             try {
@@ -688,9 +765,8 @@ public class DnsForwarder {
                                     txId = (txId + 1) & 0xFFFF;
                                     byte[] queryPacket = buildSyntheticDnsQuery(domain, qtype, txId);
 
-                                    // Send to primary upstream (Google 8.8.8.8 or Cloudflare 1.1.1.1)
-                                    InetAddress primary = upstreamServers.isEmpty() ?
-                                        InetAddress.getByName("8.8.8.8") : upstreamServers.get(0);
+                                    // Send to ECS-capable resolver (Google 8.8.8.8) for optimal local edge caching
+                                    InetAddress primary = InetAddress.getByName("8.8.8.8");
                                     DatagramPacket sendPack = new DatagramPacket(queryPacket, queryPacket.length, primary, 53);
                                     prewarmSocket.send(sendPack);
 

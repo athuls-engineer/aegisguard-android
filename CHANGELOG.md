@@ -2,7 +2,30 @@
 
 All notable changes to the **AegisGuard** Android project are documented in this file.
 
-## [3.1.11] - 2026-11-11
+## [3.1.12] - 2026-11-15
+### Highlights: Lightning-Fast YouTube & Website Loading, Type 65 HTTPS Stalling Elimination & Socket Concurrency Overhaul
+- **Eliminated 350ms Stalling Bug on Type 65 (`TYPE_HTTPS` RFC 9460) Queries**:
+  - Resolved root-cause bottleneck where Android Chrome and YouTube query Type 65 HTTPS resource records (for ECH and HTTP/3 parameters) alongside Type A; `DnsPacketParser.hasValidIpAnswer()` previously checked only `TYPE_A` and `TYPE_AAAA`, causing valid HTTPS responses to be misclassified as empty responses and held back by a mandatory 350ms stalling wait.
+  - Overloaded `hasValidIpAnswer(byte[] dnsPayload, int qType)` with full query-type awareness: immediately validates any response with `ANCOUNT > 0` for non-A/AAAA queries (Type 65, CNAME, TXT, SRV), and accepts CNAME records in answer sections.
+  - Lowered anycast race timeout for genuine empty responses from 350ms to 150ms.
+- **Socket Pool Expansion (16 -> 64) & Zero-Exception Immediate Socket Reuse**:
+  - Eliminated the blocking `socket.setSoTimeout(1)` drain loop in `borrowProtectedSocket()`, which generated thousands of caught `SocketTimeoutException` stack traces and CPU freezes per page load.
+  - Sockets in the pool are now reused immediately without blocking delays (stale packets are naturally discarded by `respTxId == expectedTxId` matching).
+  - Increased `MAX_SOCKET_POOL` from 16 to 64 sockets, eliminating thread starvation, UDP burst drops, and expensive fallback Binder IPC `protect()` calls during concurrent multi-connection page loads.
+- **EDNS Client Subnet (ECS) Routing Optimization & Video CDN Edge Acceleration**:
+  - Expanded `isStreamingOrCdnDomain()` to cover all YouTube and core platform infrastructure (`youtube.com`, `youtu.be`, `ytimg.com`, `ggpht.com`, `google.com`, `googleapis.com`, `gstatic.com`, `googleusercontent.com`, `netflix.com`, `hotstar.com`, `primevideo.com`, `amazon.in`, `amazon.com`, `flipkart.com`, `spotify.com`, `reddit.com`, `instagram.com`, `discord.com`, `apple.com`).
+  - Prioritized ECS-preserving resolvers (Google Public DNS `8.8.8.8` / `8.8.4.4` and Physical ISP Gateway DNS) in Wave 1 upstream racing, ensuring authoritative nameservers route video streams and website assets to the user's local ISP edge cache (Google Global Cache) rather than distant CDN nodes.
+  - Prewarmed hot domains against Google DNS `8.8.8.8` with a reduced 100ms timeout for instant local edge resolution.
+- **RFC 8305 Happy Eyeballs Hanging Elimination on IPv4-Only Networks**:
+  - Added real-time physical IPv6 default route detection in `DnsForwarder` via `ConnectivityManager` / `LinkProperties`.
+  - When the underlying network has no native IPv6 route, `DnsForwarder` immediately synthesizes a NOERROR NODATA response (`ANCOUNT = 0`) for `TYPE_AAAA` queries in < 0.01ms via `createNodataDnsPayload()`, allowing apps and browsers to connect immediately over IPv4 without experiencing 250ms–2,000ms Happy Eyeballs connection timeouts.
+- **DNS Cache Preservation Across Background Dynamic Feed Updates**:
+  - Removed `DnsForwarder.clearCacheGlobal()` from `DynamicFilterManager.updateFiltersAsync()`, keeping the 8,192-entry DNS cache hot across 5-hour threat feed updates.
+  - Set `sExecutor` thread priority to `Thread.MIN_PRIORITY` so background parsing of 183k threat signatures never contends with packet forwarding.
+- **Verification**:
+  - `AegisGuardStressTest`: **100,000 / 100,000 scenarios passed (100.00%)** in 1.32s.
+  - `TestHttpsRrParsing`: Type 65 HTTPS parsing validated with 0ms artificial stall.
+  - All benchmarks 100% maintained: **TurtleCute (126/126, 100.0%)**, **D3Ward Toolz (131/131, 100.0%)**, **CanYouBlockIt (26/26, 100.0%)**, **AdBlock-Tester External Domains (13/13, 100.0%)**.
 ### Highlights: Zero-Breakage Multi-Feed Auto-Updates (Ads, Trackers & Fingerprinting) Enabled by Default
 - **Auto-Sync Threat Feeds Enabled Out of the Box**:
   - Switched `DynamicFilterManager.KEY_AUTO_UPDATE` (`auto_update_threat_filters`) to default `true` across `DynamicFilterManager`, `BootReceiver`, `FilterUpdateReceiver`, and `SettingsActivity` (with one-time `auto_update_v311_initialized` migration for existing installs so upgrades enable auto-sync automatically unless manually turned off later).

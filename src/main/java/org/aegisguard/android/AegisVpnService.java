@@ -232,6 +232,7 @@ public class AegisVpnService extends VpnService implements Runnable {
                     @Override
                     public void onLinkPropertiesChanged(Network network, LinkProperties linkProperties) {
                         if (dnsForwarder != null) {
+                            dnsForwarder.updatePhysicalIpv6Status(network);
                             dnsForwarder.refreshNetworkDns();
                         }
                     }

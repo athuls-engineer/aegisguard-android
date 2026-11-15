@@ -48,7 +48,15 @@ public class DynamicFilterManager {
     private static final long RETRY_COOLDOWN_MS = 5 * 60 * 1000L;
     private static final String CACHE_FILE_NAME = "aegis_dynamic_threat_cache_v311.txt";
 
-    private static final ExecutorService sExecutor = Executors.newSingleThreadExecutor();
+    private static final ExecutorService sExecutor = Executors.newSingleThreadExecutor(new java.util.concurrent.ThreadFactory() {
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(r, "AegisDynamicThreatSync");
+            t.setPriority(Thread.MIN_PRIORITY);
+            t.setDaemon(true);
+            return t;
+        }
+    });
     private static final Handler sMainHandler = new Handler(Looper.getMainLooper());
     private static final AtomicBoolean sIsUpdating = new AtomicBoolean(false);
     private static volatile long sLastSyncAttemptMs = 0L;
@@ -252,7 +260,9 @@ public class DynamicFilterManager {
                         );
 
                         saveToLocalStorage(appContext, bundle);
-                        DnsForwarder.clearCacheGlobal();
+                        // Active DNS cache is deliberately preserved across background threat updates:
+                        // FilterEngine evaluates domains dynamically at query time, so warm cache entries for
+                        // legitimate sites (YouTube, news, search) remain instantly usable at 0.00ms.
 
                         SharedPreferences sp = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
                         sp.edit()
